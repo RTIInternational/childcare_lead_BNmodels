@@ -6,7 +6,7 @@ Mulhern, R. E.; Kondash, A.; Norman, E.; Johnson, J.; Levine, K.; McWilliams, A.
 <i>Environmental Science and Technology.</i> Under review. 
 
 ### Data
-The data set for this work is based on first-draw water lead sampling from over 4,000 child care centers in North Carolina, collected by the Clean Water for Carolina Kids program: https://www.cleanwaterforcarolinakids.org/. The data set is deidentified and provides eight binary target variables (whether the maximum water lead concentration exceeded 1, 5, 10, or 15 ppb and whether the 90th percentile lead concentration exceeded 1, 5, 10, or 15 ppb) as well as compiled predictor variables for machine learning. 
+The data set for this work is based on first-draw water lead sampling from over 4,000 child care centers in North Carolina, collected by the Clean Water for Carolina Kids program: https://www.cleanwaterforcarolinakids.org/. The data set is deidentified and provides eight binary target variables (whether the maximum water lead concentration for each facility exceeded 1, 5, 10, or 15 ppb and whether the 90th percentile lead concentration for each facility exceeded 1, 5, 10, or 15 ppb) as well as compiled predictor variables for machine learning. 
 
 The data set to reproduce the analysis and data dictionary are located in the folder: <i>childcare_lead_BNmodels/data</i>
 
