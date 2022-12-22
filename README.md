@@ -32,3 +32,11 @@ Additional software packages that will need to be downloaded and installed from 
 
 ### R scripts
 All scripts below are located in the folder: <i>childcare_lead_BNmodels/scripts</i>
+
+
+
+The scripts are meant to be run in the following order, since each script generates various outputs that the subsequent scripts utilize for data analysis and visualization. 
+
+
+### Questions
+Questions about the code in this repository should be directed to Riley E. Mulhern: rmulhern@rti.org
