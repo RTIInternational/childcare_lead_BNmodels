@@ -1,0 +1,50 @@
+ID,Facility ID
+maxabove1,Whether the facility maximum water lead value was above 1 ppb
+maxabove5,Whether the facility maximum water lead value was above 5 ppb
+maxabove10,Whether the facility maximum water lead value was above 10 ppb
+maxabove15,Whether the facility maximum water lead value was above 15 ppb
+perc90above1,Whether the facility 90th percentile water lead values was above 1 ppb
+perc90above5,Whether the facility 90th percentile water lead values was above 5 ppb
+perc90above10,Whether the facility 90th percentile water lead values was above 10 ppb
+perc90above15,Whether the facility 90th percentile water lead values was above 15 ppb
+PER_FREE,Percent of enrolled children receiving free/reduced lunch
+PER_NON_WHITE,Percent of enrolled children identifying as non-White
+TOTAL_ENROLL,Total number of children enrolled
+nsamples,The number of drinking and cooking water samples collected for analysis by the center (center staff were instructed to sample all drinking and cooking taps). 
+perc_filtered,The percentage of taps sampled by each center that had a point-of-use filter installed and was flagged as filtered by center staff.
+connections,Number of service connections in the water system. Centers reporting using private well water default to 1 service connection. Other centers not served by a community water system coded as missing.
+connections_cat,"The number of service connections categorized into ""Small/very small/private"" (<3300 connections); ""Medium"" (3301-10000 connections); and ""Large/very large"" (>10001 connections)"
+wells,Number of groundwater wells supplying water to the distribution system. Centers reporting using private well water default to 1 well. Other centers not served by a community water system coded as missing. 
+lcr_mean,Mean lead concentration from the most recent year of Lead and Copper Rule monitoring (mg/L). 
+lcr_med,Median lead concentration from the most recent year of Lead and Copper Rule monitoring (mg/L). 
+lcr_max,Max lead concentration from the most recent year of Lead and Copper Rule monitoring (mg/L). 
+lcr_over15,Number of samples from the most recent year of Lead and Copper Rule monitoring data exceeding 1 ppb. 
+lcr_over10,Number of samples from the most recent year of Lead and Copper Rule monitoring data exceeding 10 ppb. 
+lcr_over1,Number of samples from the most recent year of Lead and Copper Rule monitoring data exceeding 15 ppb. 
+MEDIAN_hh_income_1mile,Simulated median annual household income within a 1-mile radius around each center address. 
+PC_non_white_hh_1mile,Simulated percent non-White population within a 1-mile radius around each center address.
+MEDIAN_hh_income_0.5mile,Simulated median annual household income within a 0.5-mile radius around each center address.
+PC_non_white_hh_0.5mile,Simulated percent non-White population within a 0.5-mile radius around each center address.
+MEDIAN_hh_income_0.25mile,Simulated median annual household income within a 0.25-mile radius around each center address.
+PC_non_white_hh_0.25mile,Simulated percent non-White population within a 0.25-mile radius around each center address.
+OWN_OR_LEASE,Whether the center building was owned or leased.
+head_start,Whether the center was a federally funded Head Start program
+school,Whether the center was located in a school building
+home_based,Whether the center was located in a home
+franchised,Whether the center was part of a franchise
+BUILT_cat,Year the building was constructed 
+opzone,Whether the center was located in an area designated as a HUD Opportunity Zone
+cws,Whether the center was connected to a public community water system (CWS)
+private_well,"Whether the center used a private well for its water supply. This was determined according to whether the center responded “No” to the question “Does your drinking water come from a public water treatment plant?” and “Yes” to the question “Does the center use well water?” This variable was not mutually exclusive with “Community water system” suggesting that a) some non-CWS systems receive water from a source other than a well, b) that center staff were not aware that they were served by a CWS, or c) the center staff were not aware that they received water from a private well. "
+WASTE_SYSTEM,Whether the center was served by an onsite wastewater system
+Y_N_FIXTURE_CHG,Whether the center had any known past faucet fixture changes
+fixture_year_cat,Year of past faucet fixture change
+year_began_operating_cat,Year the licensed center began operating
+LCR15_0.1_bin,"Whether the 90th percentile lead concentration from the most recent year of monitoring data exceeded 15 ppb (i.e., a Lead and Copper Rule violation. "
+purchased,Whether the water system purchased water from another community water system. Centers reporting using private well water default to “not purchased”. Other centers not served by a community water system coded as missing.
+type_binary,Water system source water type. Centers reporting using private well water default to groundwater. Other centers not served by a community water system coded as missing.
+ph_binary,Whether the water system implements pH adjustment. Centers reporting using private well water default to no pH adjustment.  Other centers not served by a community water system coded as missing. 
+Phos_binary,Whether the water system implements phosphate-based corrosion control. Centers reporting using private well water default to no phosphate addition.  Other centers not served by a community water system coded as missing.
+chloramines,Whether the water system uses chloramination for disinfection. Centers reporting using private well water default to no chloramination.  Other centers not served by a community water system coded as missing.
+coagulation,Whether the water system implements coagulation in the treatment train. Centers reporting using private well water default to no coagulation.  Other centers not served by a community water system coded as missing.
+ruca_cat,Rural-Urban Community Area (RUCA) classification
