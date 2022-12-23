@@ -45,11 +45,11 @@ All scripts below are located in the folder: <i>childcare_lead_BNmodels/scripts<
 
 The main code required to build a model for each target is <b>Mulhern_et_al_BN_model_script_as_published.R</b> The target node must be manually set by the user. This script will allow the user to visualize and save the outputs for a single model at a time. 
 
-If only a single target is of interest, then no other scripts are necessary. However, in order to summarize the outputs of all eight models, the above script must be run iteratively eight times for each target node. The subsequent scripts then summarize the outputs of all eight models.
+If only a single target is of interest, then no other scripts are necessary. (It is the authors' hope that this script may also be re-used for other open source machine learning applications using Bayesian networks by replicating the basic pre-processing and machine learning steps shown in the script, including: defining numerical and categorical variables, splitting the data set into training and test sets, discretizing continuous variables, imputing missing data, learning the network structure, selecting significant predictor nodes, and assessing the model's performance.)
 
-The subsequent scripts are described below and should be run in the following order since the outputs of some are used as the inputs to others:
+In order to summarize the outputs of all eight models shown in the cited manuscript, the above script must be run iteratively eight times for each target node. The subsequent scripts then summarize the outputs of all eight models. These additional scripts are described below and <b>should be run in the following order</b> since the outputs of some are used as the inputs to others:
 <ul> 
-  <li><b>improvement_summary.R</b> - This script generates Figures 4 and 6 in the above-cited manuscript to compare the F-scores, sensitivity improvement, and sampling reduction metrics achieved by the BN models to the various alternative heuristics. </li>
+  <li><b>improvement_summary.R</b> - This script generates Figures 4 and 6 in the manuscript to compare the F-scores, sensitivity improvement, and sampling reduction metrics achieved by the BN models to the various alternative heuristics. </li>
   <li><b>performance_summary.R</b> - This script generates Figure 3 in the manuscript and an overall summary table of the performance metrics of all eight models.</li>
   <li><b>sigvars_summary_all_models.R</b> - This script generates Figure 1 in the manuscript to visualize the frequency of variables selected across all eight models.</li>
   <li><b>network_structure_summary.R</b> - This script generates clean versions of the network structures for all eight nodes. Interactive versions of the outputs can be seen at: https://www.cleanwaterforcarolinakids.org/publications/bn_models</li>
