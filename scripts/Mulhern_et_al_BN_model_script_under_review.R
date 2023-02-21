@@ -1,8 +1,10 @@
-#Title: BAYESIAN NETWORK MODELS TO PREDICT WATER LEAD RISK IN NORTH CAROLINA CHILD CARE FACILITIES
+#BAYESIAN NETWORK MODELS TO PREDICT WATER LEAD RISK IN NORTH CAROLINA CHILD CARE FACILITIES
+
+#Variable selection strategy: Chi-squared tests
 
 #Author: Riley E. Mulhern, PhD <rmulhern@rti.org>
 
-#Date: December 22, 2022
+#Date: February 16, 2023
 
 rm(list=ls()) #Clear environment
 
@@ -21,19 +23,19 @@ library(ROCR) #evaluate performance using ROC curve
 library(purrr) #compile ROC values from nested lists
 library(caret) #confusion matrix
 library(mice) #missing data
+library(ggmice) #plot patterns of missing data
+library(zoo) #smooth improvement fit
 
 cbPalette <- c("#E69F00","#56B4E9","#999999","#009E73", "#D55E00", "#CC79A7","#0072B2","#F0E442") #color blind color palette
 cbPalette2 <- c("#E69F00","#56B4E9","#009E73","#D55E00","#0072B2","#F0E442","#CC79A7","#999999")
 
-#Get working directory 
-getwd() #This is where the outputs from this script will be saved. To set an different working directory use setwd().
-
 #### Load data -----------------------------------------------------------------
-#Import data set from Github:
-data<-read.csv("https://github.com/RTIInternational/childcare_lead_BNmodels/raw/main/data/Mulhern%20et%20al_Improved%20decision%20making%20for%20water%20lead%20testing_DATA.csv")
 
-###SET TARGET NODE
-target<-"maxabove1" #Options = maxabove1, maxabove5, maxabove10, maxabove15, perc90above1, perc90above5, perc90above10, perc90above15
+#Get working directory
+getwd() #This is where the outputs from this script will be saved. To set a different working directory use setwd().
+
+#Import data set
+data<-read.csv()
 
 #Define numeric model variables
 num_vars<-c("PER_FREE",
@@ -41,19 +43,10 @@ num_vars<-c("PER_FREE",
                "TOTAL_ENROLL",
                "nsamples",
                "perc_filtered",
-               "wells",
-               "lcr_mean",
-               "lcr_med",
-               "lcr_max",
-               "lcr_over15",
-               "lcr_over10",
-               "lcr_over1",
-               "MEDIAN_hh_income_1mile",
-               "PC_non_white_hh_1mile",
-               "MEDIAN_hh_income_0.5mile",
-               "PC_non_white_hh_0.5mile",
-               "MEDIAN_hh_income_0.25mile",
-               "PC_non_white_hh_0.25mile")
+               "perc_non_white_cbg",
+               "perc_hs_higher_cbg",
+               "med_hh_income_cbg")
+
 
 #Define categorical model variables
 cat_vars<-c("OWN_OR_LEASE",
@@ -69,8 +62,7 @@ cat_vars<-c("OWN_OR_LEASE",
                 "Y_N_FIXTURE_CHG",
                 "fixture_year_cat",
                 "year_began_operating_cat",
-                "LCR15_0.1_bin",
-                "purchased",
+                "any_lcr_exceedance",
                 "type_binary",
                 "ph_binary",
                 "Phos_binary",
@@ -81,6 +73,7 @@ cat_vars<-c("OWN_OR_LEASE",
 
 #### Set seed and target node --------------------------------------------------
 set.seed(32)
+target<-"maxabove1" #Options = maxabove1, maxabove5, maxabove10, maxabove15, perc90above1, perc90above5, perc90above10, perc90above15
 data<-data%>%
   select(all_of(c(target,num_vars,cat_vars)))%>% #select only target node and predictor variables
   mutate(across(all_of(c(target,cat_vars)),factor))%>% #define target and categorical variables as factors
@@ -94,62 +87,54 @@ train_data<-data%>%
 
 test_data<-anti_join(data,train_data,by="id")
 
-#### Impute missing data, handle test/train partitions separately---------------
-#Train data
-md.pattern(train_data,rotate.names = TRUE) #view missing data
-temp_train<-mice(train_data,m=1,maxit=5,meth="cart",seed=500) #run imputation, cart=classification and regression trees
-train_data_complete<-complete(temp_train,1)
-md.pattern(train_data_complete,rotate.names = TRUE) #confirm no missing values
-
-#Test data
-md.pattern(test_data,rotate.names = TRUE) #view missing data
-temp_test<-mice(test_data,m=1,maxit=5,meth="cart",seed=500) #run imputation, cart=classification and regression trees
-test_data_complete<-complete(temp_test,1)
-md.pattern(test_data_complete,rotate.names = TRUE) #confirm no missing values
-
 #### Discretize data for machine learning -----------------------------------------
-      #supervised discretization of continuous variables 
-train_num_disc_list<-train_data_complete%>%
-  select(all_of(c(num_vars,"target")))%>%
-  mutate(across(all_of(num_vars),as.numeric))%>%
-  ForestDisc(data=.,id_target=19,max_splits=2,opt_meth = "SLSQP")
+    #supervised discretization of continuous variables
 
-train_num_disc<-train_num_disc_list[["data_disc"]]%>%
-  mutate(across(all_of(num_vars),factor)) #drop any factor levels with no observations, required for bnlearn
-summary(train_num_disc)
+#Find best cutpoints among complete cases for each numeric variable independently using only the training set
+cutpoints_list<-list() #create an empty list
+for (num_var in num_vars) {
+  disc<-train_data%>%
+    select(all_of(c(num_var,"target")))%>%
+    mutate(blank=0)%>% #add in a blank variable to ensure the random forest function in ForestDisc continues to read the data as a data frame not a vector when discretizing a single varibale at a time
+    filter(complete.cases(.))%>% #discretization algorithm only considers complete cases of each variable at a time for selecting cutpoints
+    #mutate(num_var=as.numeric(num_var))%>%
+    ForestDisc(data=.,id_target=2,max_splits=2,opt_meth = "SLSQP")
+  cutpoints=disc[["listcutp"]]
+  cutpoints_list[num_var]=cutpoints
+}
 
-train_complete_disc<-train_data_complete%>%
-  select(all_of(c(cat_vars)))%>%
-  cbind(train_num_disc)
-summary(train_complete_disc)
+#Apply cutpoints to numeric variables in training set
+train_data_disc<-train_data#%>%select(!id)
+for (num_var in num_vars) {
+  train_data_disc[,num_var]=cut(train_data_disc[,num_var],breaks=c(-Inf,cutpoints_list[[num_var]],Inf))
+}
 
-#Assign cutpoints identified for the training set to the test set (required step for BN models)
-test_complete_disc<-test_data_complete%>%
-  mutate(PER_FREE=cut(PER_FREE,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[1]],Inf)),
-         PER_NON_WHITE=cut(PER_NON_WHITE,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[2]],Inf)),
-         TOTAL_ENROLL=cut(TOTAL_ENROLL,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[3]],Inf)),
-         nsamples=cut(nsamples,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[4]],Inf)),
-         perc_filtered=cut(perc_filtered,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[5]],Inf)),
-         wells=cut(wells,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[6]],Inf)),
-         lcr_mean=cut(lcr_mean,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[7]],Inf)),
-         lcr_med=cut(lcr_med,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[8]],Inf)),
-         lcr_max=cut(lcr_max,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[9]],Inf)),
-         lcr_over15=cut(lcr_over15,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[10]],Inf)),
-         lcr_over10=cut(lcr_over10,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[11]],Inf)),
-         lcr_over1=cut(lcr_over1,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[12]],Inf)),
-         MEDIAN_hh_income_1mile=cut(MEDIAN_hh_income_1mile,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[13]],Inf)),
-         PC_non_white_hh_1mile=cut(PC_non_white_hh_1mile,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[14]],Inf)),
-         MEDIAN_hh_income_0.5mile=cut(MEDIAN_hh_income_0.5mile,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[15]],Inf)),
-         PC_non_white_hh_0.5mile=cut(PC_non_white_hh_0.5mile,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[16]],Inf)),
-         MEDIAN_hh_income_0.25mile=cut(MEDIAN_hh_income_0.25mile,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[17]],Inf)),
-         PC_non_white_hh_0.25mile=cut(PC_non_white_hh_0.25mile,breaks=c(-Inf,train_num_disc_list[["listcutp"]][[18]],Inf)))%>%
-  select(!"id")%>%
-  mutate(across(all_of(num_vars),factor)) #drop any factor levels with no observations, required for bnlearn
-summary(test_complete_disc)
+#re-categorize LCR variable based on whether the facility was served by a private well,
+#in which case LCR data is not applicable and a value should not be imputed
+train_data_disc<-train_data_disc%>%
+  mutate(any_lcr_exceedance=as.character(any_lcr_exceedance),
+         #n_lcr_exceedances=as.character(n_lcr_exceedances),
+         any_lcr_exceedance=factor(ifelse(private_well==1,"lcr_na",any_lcr_exceedance)))
+         #n_lcr_exceedances=factor(ifelse(private_well==1,"lcr_na",n_lcr_exceedances)))
 
-#### Learn BN structure -----------------------------------------------------------
+#Apply cutpoints identified for the training set to the test set (required step for BN models)
+test_data_disc<-test_data#%>%select(!id)
+for (num_var in num_vars) {
+  test_data_disc[,num_var]=cut(test_data_disc[,num_var],breaks=c(-Inf,cutpoints_list[[num_var]],Inf))
+}
+
+#re-categorize LCR variables for test data set as above
+test_data_disc<-test_data_disc%>%
+  mutate(any_lcr_exceedance=as.character(any_lcr_exceedance),
+         #n_lcr_exceedances=as.character(n_lcr_exceedances),
+         any_lcr_exceedance=factor(ifelse(private_well==1,"lcr_na",any_lcr_exceedance)))
+         #n_lcr_exceedances=factor(ifelse(private_well==1,"lcr_na",n_lcr_exceedances)))
+
+
+#### Learn BN structure --------------------------------------------------------
 # plot network function - from https://www.r-bloggers.com/2018/09/bayesian-network-example-with-the-bnlearn-package/
 plot.network <- function(structure, color, ht = "600px"){
+  if(missing(color)){color="darkturquoise"}
   nodes.uniq <- unique(c(structure$arcs[,1], structure$arcs[,2]))
   nodes <- data.frame(id = nodes.uniq,
                       label = nodes.uniq,
@@ -165,84 +150,120 @@ plot.network <- function(structure, color, ht = "600px"){
 }
 
 #Learn and plot Bayesian network structure using all possible variables
-bn<-tree.bayes(train_complete_disc, "target")
+train_data_disc<-train_data_disc%>%select(!id)
+bn<-tree.bayes(train_data_disc, "target")
 plot.network(bn,"darkturquoise")
 
-#Evaluate strength of arcs, select only nodes with significant arcs connected to target
-strengths.x2<-arc.strength(bn,data=train_complete_disc,criterion = "x2") #Pearson's chi-squared criterion
+#Evaluate strength of arcs using selected variable selection method, select only nodes with significant arcs connected to target
+strengths.x2<-arc.strength(bn,data=train_data_disc,criterion = "x2") #Pearson's chi-squared criterion
 sig_arcs.x2<-strengths.x2%>%
   filter(from=="target")%>%
-  filter(strength<0.05)
+  filter(strength<0.05) #select only arcs that are statistically significant, p<0.05
+
+png(paste0("strength_plot_x2_",target,".png"),width=14,height=9,units="in",res=600)
+strength.plot(bn,strengths.x2,shape="rectangle",fontsize = 16,layout="dot",main=target) #plot arc strengths
+dev.off()
 
 sig_vars.x2<-c(sig_arcs.x2$to,"target") #list significant variable names
-sig_vars.x2
-write.csv(sig_vars.x2,paste0("sigvars_",target,".csv"))
+write.csv(sig_vars.x2,paste0("sigvars.x2_",target,".csv"))
 length(sig_vars.x2) #number of significant predictors for target
 
-train_complete_disc_select<-train_complete_disc%>% #compile new training data set with only significant variables
+train_data_select.x2<-train_data_disc%>% #compile new training data set with only significant variables
   dplyr::select(all_of(c(sig_vars.x2)))
 
-test_complete_disc_select<-test_complete_disc%>% #compile new test data set with only significant variables
+test_data_select.x2<-test_data_disc%>% #compile new testing data set with only significant variables
   dplyr::select(all_of(c(sig_vars.x2)))
 
 #Re-learn Bayesian network structure with significant nodes only
-bn.sig<-tree.bayes(train_complete_disc_select,"target")
+bn.sig<-tree.bayes(train_data_select.x2,"target")
 plot.network(bn.sig,"darkturquoise")
+write.csv(bn.sig$arcs,paste0("bn_arcs_x2_",target,".csv"))
 
-write.csv(bn.sig$arcs,paste0("bn_arcs_",target,".csv"))
+#### Evaluate BN performance ---------------------------------------------------
+#From this point forward, the final training and testing data are renamed as:
+train<-train_data_select.x2
+test<-test_data_select.x2
+#Define functions to calculate AUC and AUC-PR
 
-#### Evaluate BN performance ------------------------------------------------------
+#bn.predict -- This function takes the user-specified training and test data sets
+#to calculate the predicted probabilities of the target from the specified network structure.
+#An integrated Bayesian LW imputation function fills in missing values of the testing data set before
+#the prediction based on the structure of the network. The "impute" function requires
+#that the target variable be present in the test set. To avoid data leakage during model
+#performance evaluation and to simulate a practical use case where the target variable is not known,
+#the test set is stripped of the real target result and  a random starting guess for the target
+#outcome is filled in. This guess is only used for imputation and then is removed again prior to prediction.
+bn.predict<-function(network, train_data, test_data){
+  fitted<-bn.fit(network, train_data, method = "bayes") #compute complete conditional probability table from the network
+  ##### Impute missing
+  test_data_rm_target<-test_data%>%
+    select(!target)%>% #hide real result from imputation process
+    mutate(target=factor(sample(c(0,1),nrow(test_data),replace=TRUE))) #guess a random starting result for the target node
+  test_data_imputed<-impute(fitted,test_data_rm_target)%>%
+    select(!target) #remove initial random guess from imputed data set
+  #####
+  pred_probs<-predict(fitted, test_data_imputed, prob=TRUE) #predict probabilities of target node given network
+  probs<-data.frame(t(attributes(pred_probs)$prob))
+  realresult<-test_data%>%dplyr::select(all_of("target"))
+  pred_class<-prediction(probs$X1,realresult)
+  return(pred_class)
+}
 
-#Evaluate within train data-set performance
-fitted<-bn.fit(bn.sig, train_complete_disc_select, method = "bayes") #compute complete conditional probability table from the network
-pred_probs_train<-predict(fitted, train_complete_disc_select, prob=TRUE) #predict probabilities of target node given network
-probs_train<-data.frame(t(attributes(pred_probs_train)$prob))
-realresult_train<-train_complete_disc_select%>%dplyr::select(all_of("target"))
-pred_class_train<-prediction(probs_train$X1,realresult_train)
-perf_class_train<-performance(pred_class_train,"tpr","fpr")
-plot(perf_class_train) #plot ROC curve
+#bn.perf -- This function uses the output of bn.predict to plot basic ROC and PR curve and prints the AUC values for each.
+#It also stores new variables in the global environment with the ROC and PR data
+#called roc_name and pr_name (which are the complete data for more advanced plotting)
+#and auc_name and aucpr_name (which are the AUC values of the ROC and PR curves)
+#where 'name' corresponds to the 'output_name' field specified in the function call.
+#Use 'output_name' to define which data set the performance calculations are being run for (i.e., the training or test set).
+bn.perf<-function (network,train_data,test_data,output_name){
+  fitted<-bn.fit(network, train_data, method = "bayes") #compute complete conditional probability table from the network
+  pred_class<-bn.predict(network,train_data,test_data)
+  assign(paste0("fitted_",output_name),fitted,envir=.GlobalEnv)
+  perf_class_roc<-performance(pred_class,"tpr","fpr")
+  perf_class_pr<-performance(pred_class,"ppv","tpr")
+  plot(perf_class_pr) #plot PR curve
+  plot(perf_class_roc) #plot ROC curve
+  auc<-as.numeric(performance(pred_class, "auc")@y.values) #calculate area under the ROC curve
+  aucpr<-as.numeric(performance(pred_class,"aucpr")@y.values) #calculate area under the PR curve
+  roc.dat<-data.frame(x=perf_class_roc@x.values,
+                      y=perf_class_roc@y.values)
+  colnames(roc.dat)<-c("x","y")
+  pr.dat<-data.frame(x=perf_class_pr@x.values,
+                     y=perf_class_pr@y.values)
+  colnames(pr.dat)<-c("x","y")
+  assign(paste0("roc_",output_name),roc.dat,envir=.GlobalEnv)
+  assign(paste0("pr_",output_name),pr.dat,envir=.GlobalEnv)
+  assign(paste0("auc_",output_name),auc,envir=.GlobalEnv)
+  assign(paste0("aucpr_",output_name),aucpr,envir=.GlobalEnv)
+  print(data.frame(metric=c("auc-roc","auc-pr"),
+                   result=c(auc,aucpr)))
+}
 
-auc_train<-as.numeric(performance(pred_class_train, "auc")@y.values) #calculate area under the ROC curve
-auc_train #print AU-ROC value for training data set
+#Test performance of network internally on the training set
+bn.perf(network=bn.sig,train_data=train,test_data=train,output_name = "train")
 
-aucpr_train<-as.numeric(performance(pred_class_train,"aucpr")@y.values) #calculate area under the PR curve
-aucpr_train #print AU-PR value for training data set
-
-#Store ROC curve data for training set
-roc_train<-data.frame(x=perf_class_train@x.values,
-                     y=perf_class_train@y.values)
-colnames(roc_train)<-c("x","y")
-
-#Store PR curve data for training set
-perf_class_pr_train<-performance(pred_class_train,"ppv","tpr")
-pr_train<-data.frame(x=perf_class_pr_train@x.values,
-                     y=perf_class_pr_train@y.values)
-colnames(pr_train)<-c("x","y")
+#Test performance of network externally on the test set
+bn.perf(network=bn.sig,train_data=train,test_data=test,output_name = "test")
 
 #K-fold cross-validation
 k=10 #use 10 folds
-kfold<-bn.cv(data=train_complete_disc_select, 
+kfold<-bn.cv(data=train,
              bn="tree.bayes",
              method="k-fold",
              k=k,
              runs=1,
-             loss="pred-exact", #select loss function logl=log-likelihood loss
-             loss.args=list(target="target"),
+             loss="pred", #select loss function, Classification Error (pred): the prediction error for a single node in a discrete network.
              algorithm.args = list(training="target"))
 names(kfold)<-c(1:k) #assign each element of k-fold list output the corresponding fold number
 
 #Generate ROC curves for each fold
-bn.data<-train_complete_disc_select #rename data set for ROC functions
 calc.roc.kfold<-function(list){
   test.index<-list[["test"]]
-  test.set<-na.omit(bn.data[test.index,])
-  train.set<-na.omit(bn.data[-test.index,])
-  fitted<-list[["fitted"]]
-  observed<-list[["observed"]]
-  pred_probs<-predict(fitted,test.set,prob=TRUE)
-  probs<-data.frame(t(attributes(pred_probs)$prob))
-  pred_obs_sidebyside<-data.frame(probs$X1,observed)%>%filter(is.nan(probs.X1)==FALSE) #remove any NaN results from predicted probabilities
-  pred_class<-prediction(pred_obs_sidebyside$probs.X1,pred_obs_sidebyside$observed)
+  test_data<-train[test.index,]
+  train_data<-train[-test.index,]
+  network=bn.sig
+  fitted<-bn.fit(network, train_data, method = "bayes") #compute complete conditional probability table from the network
+  pred_class<-bn.predict(network,train_data,test_data)
   perf_class<-performance(pred_class,"tpr","fpr")
   auc<-as.numeric(performance(pred_class, "auc")@y.values) #calculate area under the ROC curve
   return(auc)
@@ -252,51 +273,28 @@ kfold.auc<-sapply(kfold,calc.roc.kfold)
 kfold.auc #AU-ROC value from each fold
 mean.auc<-mean(kfold.auc)
 mean.auc #mean AU-ROC value
-
-#Evaluate performance on test data set
-pred_probs_test<-predict(fitted, test_complete_disc_select, prob=TRUE) #predict probabilities of target node given fitted model 
-probs_test<-data.frame(t(attributes(pred_probs_test)$prob))
-realresult_test<-test_complete_disc_select%>%dplyr::select(all_of("target"))
-pred_class_test<-prediction(probs_test$X1,realresult_test)
-perf_class_test<-performance(pred_class_test,"tpr","fpr")
-plot(perf_class_test) #plot ROC curve
-
-auc_test<-as.numeric(performance(pred_class_test, "auc")@y.values) #calculate area under the ROC curve
-auc_test #print AU-ROC value for full data set
-
-aucpr_test<-as.numeric(performance(pred_class_test,"aucpr")@y.values) #calculate area under the PR curve
-aucpr_test #print AU-PR value for training data set
-
-
-#Store ROC curve data for test set
-roc_test<-data.frame(x=perf_class_test@x.values,
-                     y=perf_class_test@y.values)
-colnames(roc_test)<-c("x","y")
-
-#Store PR curve data for test set
-perf_class_pr_test<-performance(pred_class_test,"ppv","tpr")
-pr_test<-data.frame(x=perf_class_pr_test@x.values,
-                     y=perf_class_pr_test@y.values)
-colnames(pr_test)<-c("x","y")
+max.auc<-max(kfold.auc)
+max.auc #max
+min.auc<-min(kfold.auc)
+min.auc
 
 #Compare all ROC performance curves
+
+#function to return fpr and tpr for each fold
 plot.roc.kfold<-function(list){
   test.index<-list[["test"]]
-  test.set<-bn.data[test.index,]
-  train.set<-bn.data[-test.index,]
-  fitted<-list[["fitted"]]
-  observed<-list[["observed"]]
-  pred_probs<-predict(fitted,test.set,prob=TRUE)
-  probs<-data.frame(t(attributes(pred_probs)$prob))
-  pred_obs_sidebyside<-data.frame(probs$X1,observed)%>%filter(is.nan(probs.X1)==FALSE) #remove any NaN results from predicted probabilities
-  pred_class<-prediction(pred_obs_sidebyside$probs.X1,pred_obs_sidebyside$observed)
+  test_data<-train[test.index,]
+  train_data<-train[-test.index,]
+  network=bn.sig
+  fitted<-bn.fit(network, train_data, method = "bayes") #compute complete conditional probability table from the network
+  pred_class<-bn.predict(network,train_data,test_data)
   perf_class<-performance(pred_class,"tpr","fpr")
   x<-perf_class@x.values
   y<-perf_class@y.values
   roc.values<-data.frame(x,y)
   colnames(roc.values)<-c("fpr","tpr")
   return(roc.values)
-} #function to return fpr and tpr for each fold
+}
 
 roc.values.kfold.list<-lapply(kfold,plot.roc.kfold) #compile fpr and tpr results for each fold
 roc.values.kfold.df <- map_df(roc.values.kfold.list, ~as.data.frame(.x), .id="fold") #concatenate fpr and tpr results for plotting
@@ -324,7 +322,7 @@ roc.values.kfold.df%>%
             alpha=0.4)+
   geom_smooth(data=roc.values.average,
             aes(x=mean_fpr,y=mean_tpr,color="K-fold mean"),se=FALSE,
-            size=1.2)+
+            linewidth=1.2)+
   geom_abline(slope=1,
               size=1,
               linetype="dashed",
@@ -355,19 +353,16 @@ roc.values.kfold.df%>%
                      values=cbPalette)+
   scale_fill_manual(values="grey")
 
-ggsave(paste0("ROC_",target,".png"),plot=last_plot(),height=6,width=7,units="in",dpi=600) #save ROC output to working directory
+ggsave(paste0("ROC_x2_",target,".png"),plot=last_plot(),height=6,width=7,units="in",dpi=600) #save ROC output to working directory
 
 #Area under Precision-Recall curve (better for imbalanced data sets)
 calc.pr.kfold<-function(list){
   test.index<-list[["test"]]
-  test.set<-na.omit(bn.data[test.index,])
-  train.set<-na.omit(bn.data[-test.index,])
-  fitted<-list[["fitted"]]
-  observed<-list[["observed"]]
-  pred_probs<-predict(fitted,test.set,prob=TRUE)
-  probs<-data.frame(t(attributes(pred_probs)$prob))
-  pred_obs_sidebyside<-data.frame(probs$X1,observed)%>%filter(is.nan(probs.X1)==FALSE) #remove any NaN results from predicted probabilities
-  pred_class<-prediction(pred_obs_sidebyside$probs.X1,pred_obs_sidebyside$observed)
+  test_data<-train[test.index,]
+  train_data<-train[-test.index,]
+  network=bn.sig
+  fitted<-bn.fit(network, train_data, method = "bayes") #compute complete conditional probability table from the network
+  pred_class<-bn.predict(network,train_data,test_data)
   perf_class<-performance(pred_class,"tpr","fpr")
   aucpr<-as.numeric(performance(pred_class, "aucpr")@y.values) #calculate area under the ROC curve
   return(aucpr)
@@ -377,17 +372,18 @@ kfold.aucpr<-sapply(kfold,calc.pr.kfold)
 kfold.aucpr #Au-PR value from each fold
 mean.aucpr<-mean(kfold.aucpr)
 mean.aucpr #mean AU-PR value
+max.aucpr<-max(kfold.aucpr)
+max.aucpr #max
+min.aucpr<-min(kfold.aucpr)
+min.aucpr #min
 
 plot.pr.kfold<-function(list){
   test.index<-list[["test"]]
-  test.set<-bn.data[test.index,]
-  train.set<-bn.data[-test.index,]
-  fitted<-list[["fitted"]]
-  observed<-list[["observed"]]
-  pred_probs<-predict(fitted,test.set,prob=TRUE)
-  probs<-data.frame(t(attributes(pred_probs)$prob))
-  pred_obs_sidebyside<-data.frame(probs$X1,observed)%>%filter(is.nan(probs.X1)==FALSE) #remove any NaN results from predicted probabilities
-  pred_class<-prediction(pred_obs_sidebyside$probs.X1,pred_obs_sidebyside$observed)
+  test_data<-train[test.index,]
+  train_data<-train[-test.index,]
+  network=bn.sig
+  fitted<-bn.fit(network, train_data, method = "bayes") #compute complete conditional probability table from the network
+  pred_class<-bn.predict(network,train_data,test_data)
   perf_class<-performance(pred_class,"ppv","tpr")
   x<-perf_class@x.values
   y<-perf_class@y.values
@@ -413,7 +409,7 @@ aucpr.label1<-paste("'Train data set AU-PR =",round(aucpr_train,3),"'")
 aucpr.label2<-paste("'K-fold mean AU-PR =",round(mean.aucpr,3),"'")
 aucpr.label3<-paste("'Test data set AU-PR =",round(aucpr_test,3),"'")
 
-prior<-train_complete_disc_select%>% #calculate prior probability of the target
+prior<-train%>% #calculate prior probability of the target
   summarise(prior_above=sum(.data[["target"]]==1)/n(),
             prior_below=sum(.data[["target"]]==0)/n())
 prior
@@ -425,7 +421,7 @@ pr.values.kfold.df%>%
             alpha=0.4)+
   geom_smooth(data=pr.values.average,
               aes(x=mean_tpr,y=mean_ppv,color="K-fold mean"),
-              size=1.2,se=FALSE)+
+              linewidth=1.2,se=FALSE)+
   theme_bw()+
   theme(axis.title=element_text("bold"),
         legend.title=element_blank(),
@@ -454,24 +450,23 @@ pr.values.kfold.df%>%
   geom_hline(yintercept=prior$prior_above,linetype="dashed",color="black",size=1)+
   scale_fill_manual(values="grey")
 
-ggsave(paste0("PR_",target,".png"),plot=last_plot(),height=6,width=7,units="in",dpi=600) #save PR output to working directory
+ggsave(paste0("PR_x2_",target,".png"),plot=last_plot(),height=6,width=7,units="in",dpi=600) #save PR output to working directory
 
 #### Query probability distribution -----------------------------------------------
 
 #Calculate each conditional probability table (CPT) iteratively and store in an empty matrix
-df=train_complete_disc_select
-cpt=matrix(nrow=6,ncol=ncol(df)) #define empty conditional probability table
-colnames(cpt)<-names(df)
+cpt=matrix(nrow=6,ncol=ncol(train)) #define empty conditional probability table
+colnames(cpt)<-names(train)
 i=1
 cpt_list <- vector(mode='list', length=3)
 repeat {
-  for (column in seq(1:ncol(df))){
-    for (level in seq(1:nlevels(factor(df[,column])))) {
-      column.name=names(df)[column]
-      factor=factor(df[,column])
+  for (column in seq(1:ncol(train))){
+    for (level in seq(1:nlevels(factor(train[,column])))) {
+      column.name=names(train)[column]
+      factor=factor(train[,column])
       string=paste("(",column.name,"== '",levels(factor)[level],"')",sep = "") #dynamically build evidence string for each level of each factor
       string2=paste0("(",as.name("target")," == 1)") #set target
-      cmd=paste("cpquery(fitted, ", string2, ", ", string, ")", sep = "")#query conditional probability for P of target given evidence string
+      cmd=paste("cpquery(fitted_train, ", string2, ", ", string, ")", sep = "")#query conditional probability for P of target given evidence string
       cpt[level,column]=eval(parse(text = cmd)) #save each value in the corresponding cell of the matrix
     }
   }
@@ -480,15 +475,15 @@ repeat {
   if(i>100) {break} #repeat the loop 100 times
 }
 cpt.mean<-apply(array(unlist(cpt_list), c(dim(cpt_list[[1]]), length(cpt_list))), 1:2, mean, na.rm = TRUE) #calculate average posterior probability from 100 iterations
-colnames(cpt.mean)<-names(df)
+colnames(cpt.mean)<-names(train)
 cpt.mean #Print average conditional probabilities
 
 #create an index for the CPT query
-index=matrix(nrow=6,ncol=ncol(df)) #define empty conditional probability table
-colnames(index)<-names(df)
-for (column in seq(1:ncol(df))){
-  for (level in seq(1:nlevels(factor(df[,column])))) {
-    factor=factor(df[,column])
+index=matrix(nrow=6,ncol=ncol(train)) #define empty conditional probability table
+colnames(index)<-names(train)
+for (column in seq(1:ncol(train))){
+  for (level in seq(1:nlevels(factor(train[,column])))) {
+    factor=factor(train[,column])
     index[level,column]=levels(factor)[level] #save each value in the corresponding cell of the matrix
   }
 }
@@ -509,7 +504,7 @@ cpt.plotdata<-cpt.gather%>%
   filter(is.na(probability)==FALSE)
 colnames(cpt.plotdata)<-c("variable","probability","level")
 
-write.csv(cpt.plotdata,paste0("cpt.plotdata_",target,".csv")) 
+write.csv(cpt.plotdata,paste0("cpt.plotdata_x2_",target,".csv"))
 
 tornado.labeldata<-cpt.plotdata%>%
   group_by(variable)%>%
@@ -519,7 +514,7 @@ tornado.labeldata<-cpt.plotdata%>%
   filter(probability %in% min | probability %in% max)%>%
   filter(variable!="target")
 
-write.csv(tornado.labeldata,paste0("tornado.labeldata_",target,".csv"))
+write.csv(tornado.labeldata,paste0("tornado.labeldata_x2_",target,".csv"))
 
 #tornado plot
 tornado.chart<-cpt.plotdata%>%
@@ -554,158 +549,18 @@ tornado.chart<-cpt.plotdata%>%
   geom_text_repel(data=tornado.labeldata,aes(x=probability,y=variable,label=level),
                   size=2.5)
 tornado.chart
+ggsave(paste0("tornado_x2_",target,".png"),plot=tornado.chart,height=6,width=7,units="in",dpi=600) #save tornado plot to working directory
 
 ### Evaluate performance on test set compared to alternative heuristics --------------------
 
-improvement<-function(list){
+#Sensitivity vs Predicted Positive curves for each fold
+imprv.kfold.curves<-function(list){
   test.index<-list[["test"]]
-  model.test.set<-na.omit(train_complete_disc_select[test.index,])
-  model.train.set<-na.omit(train_complete_disc_select[-test.index,])
-  heuristic.test.set<-na.omit(train_data_complete[test.index,])
-  fitted<-list[["fitted"]]
-  observed<-list[["observed"]]
-  pred_probs<-predict(fitted,model.test.set,prob=TRUE)
-  probs<-data.frame(t(attributes(pred_probs)$prob))
-  pred_obs_sidebyside<-data.frame(probs$X1,observed)%>%filter(is.nan(probs.X1)==FALSE) #remove any NaN results from predicted probabilities
-  pred_class<-prediction(pred_obs_sidebyside$probs.X1,pred_obs_sidebyside$observed)
-  perf_class<-performance(pred_class,"tpr","fpr")
-  tot_pos<-pred_class@n.pos[[1]]
-  tot_neg<-pred_class@n.neg[[1]]
-  cutoffs<-pred_class@cutoffs[[1]]
-  tp<-pred_class@tp[[1]] #model true positives
-  tn<-pred_class@tn[[1]] #model true negatives
-  fp<-pred_class@fp[[1]] #model false positives
-  fn<-pred_class@fn[[1]] #model false negatives
-  npos<-pred_class@n.pos[[1]] #number of positives
-  nneg<-pred_class@n.neg[[1]] #number of negatives
-  accuracy<-(tp+tn)/(tp+tn+fp+fn)
-  precision<-tp/(tp+fp)
-  sensitivity<-tp/npos
-  specificity<-tn/nneg
-  accuracy.df<-as.data.frame(cbind(cutoffs,tp,tn,fp,fn,npos,nneg,accuracy,precision,sensitivity,specificity))
-  accuracy.df<-accuracy.df%>%
-    filter(is.infinite(cutoffs)==FALSE)%>%
-    mutate(pred.pos=tp+fp, #model predicted positives, number of samples needed to achieve the shown sensitivity
-           F1.score=2*((precision*sensitivity)/(precision+sensitivity)),
-           F2.score=5*((precision*sensitivity)/((4*precision)+sensitivity)),
-           fdr=1-precision)
-  ####
-  groundwater<-heuristic.test.set%>% #calculate prior probability of target
-    filter(type_binary=="GW")%>%
-    summarise(true.pos=sum(.data[["target"]]==1),
-              pred.pos=n(),
-              prec=true.pos/pred.pos,
-              sens=true.pos/tot_pos,
-              fdr=1-prec, #false discovery rate (FDR)
-              F1=2*((prec*sens)/(prec+sens)),
-              F2=5*((prec*sens)/((4*prec)+sens)))
-  ####
-  age<-heuristic.test.set%>% #calculate prior probability of target
-    filter(BUILT_cat=="pre1988")%>%
-    summarise(sens=sum(.data[["target"]]==1)/tot_pos,
-              true.pos=sum(.data[["target"]]==1),
-              pred.pos=n(),
-              prec=true.pos/pred.pos,
-              fdr=1-prec, #false discovery rate (FDR)
-              F1=2*((prec*sens)/(prec+sens)),
-              F2=5*((prec*sens)/((4*prec)+sens)))
-  ####
-  private<-heuristic.test.set%>% #calculate prior probability of target
-    filter(private_well==1)%>%
-    summarise(sens=sum(.data[["target"]]==1)/tot_pos,
-              true.pos=sum(.data[["target"]]==1),
-              pred.pos=n(),
-              prec=true.pos/pred.pos,
-              fdr=1-prec, #false discovery rate (FDR)
-              F1=2*((prec*sens)/(prec+sens)),
-              F2=5*((prec*sens)/((4*prec)+sens)))
-  ####
-  headstart<-heuristic.test.set%>% #calculate prior probability of target
-    filter(head_start==1)%>%
-    summarise(sens=sum(.data[["target"]]==1)/tot_pos,
-              true.pos=sum(.data[["target"]]==1),
-              pred.pos=n(),
-              prec=true.pos/pred.pos,
-              fdr=1-prec, #false discovery rate (FDR)
-              F1=2*((prec*sens)/(prec+sens)),
-              F2=5*((prec*sens)/((4*prec)+sens)))
-  heuristics.df<-as.data.frame(rbind(groundwater,age,headstart,private))
-  heuristics.labs=c("Groundwater","Pre-1988 buildings","Head Start","Private well water")
-  heuristics.df<-cbind(heuristics.labs,heuristics.df)
-  #Compare model performance to alternatives
-  #GW
-  n.eq.gw<-accuracy.df[which.min(abs(accuracy.df$sensitivity-groundwater$sens)),]$pred.pos
-  sens.eq.gw<-accuracy.df[which.min(abs(accuracy.df$pred.pos-groundwater$pred.pos)),]$sensitivity
-  prec.eq.gw<-accuracy.df[which.min(abs(accuracy.df$pred.pos-groundwater$pred.pos)),]$precision
-  fdr.eq.gw<-accuracy.df[which.min(abs(accuracy.df$pred.pos-groundwater$pred.pos)),]$fdr
-  #Age
-  n.eq.age<-accuracy.df[which.min(abs(accuracy.df$sensitivity-age$sens)),]$pred.pos
-  sens.eq.age<-accuracy.df[which.min(abs(accuracy.df$pred.pos-age$pred.pos)),]$sensitivity
-  prec.eq.age<-accuracy.df[which.min(abs(accuracy.df$pred.pos-age$pred.pos)),]$precision
-  fdr.eq.age<-accuracy.df[which.min(abs(accuracy.df$pred.pos-age$pred.pos)),]$fdr
-  #Headstart
-  n.eq.headstart<-accuracy.df[which.min(abs(accuracy.df$sensitivity-headstart$sens)),]$pred.pos
-  sens.eq.headstart<-accuracy.df[which.min(abs(accuracy.df$pred.pos-headstart$pred.pos)),]$sensitivity
-  prec.eq.headstart<-accuracy.df[which.min(abs(accuracy.df$pred.pos-headstart$pred.pos)),]$precision
-  fdr.eq.headstart<-accuracy.df[which.min(abs(accuracy.df$pred.pos-headstart$pred.pos)),]$fdr
-  #Private
-  n.eq.private<-accuracy.df[which.min(abs(accuracy.df$sensitivity-private$sens)),]$pred.pos
-  sens.eq.private<-accuracy.df[which.min(abs(accuracy.df$pred.pos-private$pred.pos)),]$sensitivity
-  prec.eq.private<-accuracy.df[which.min(abs(accuracy.df$pred.pos-private$pred.pos)),]$precision
-  fdr.eq.private<-accuracy.df[which.min(abs(accuracy.df$pred.pos-private$pred.pos)),]$fdr
-  #Summarise
-  n.eq.df<-data.frame(heuristics.labs=c("Groundwater","Pre-1988 buildings","Head Start","Private well water"),
-                      model_pred.pos.eq=c(n.eq.gw,n.eq.age,n.eq.headstart,n.eq.private),
-                      model_sens.eq=c(sens.eq.gw,sens.eq.age,sens.eq.headstart,sens.eq.private),
-                      model_prec.eq=c(prec.eq.gw,prec.eq.age,prec.eq.headstart,prec.eq.private),
-                      model_fdr.eq=c(fdr.eq.gw,fdr.eq.age,fdr.eq.headstart,fdr.eq.private))
-  improvement.df<-heuristics.df%>%
-    merge(y=n.eq.df,by="heuristics.labs",all.x=TRUE)%>%
-    mutate(perc_reduce_n=(pred.pos-model_pred.pos.eq)/pred.pos,
-           perc_improve_sens=(model_sens.eq-sens)/sens,
-           model_F1=max(accuracy.df$F1.score,na.rm=TRUE),
-           model_F2=max(accuracy.df$F2.score,na.rm=TRUE),
-           perc_improve_F1=(model_F1-F1)/F1,
-           perc_improve_F2=(model_F2-F2)/F2)
-} #Function to calculate performance of each alternative heuristic compared to BN model for each K-fold
-
-kfold.improvement.list<-lapply(kfold,improvement)
-kfold.improvement.df<-map_df(kfold.improvement.list, ~as.data.frame(.x), .id="fold")
-
-kfold.improvement.summary<-kfold.improvement.df%>%
-  group_by(heuristics.labs)%>%
-  filter(true.pos!=0)%>%
-  summarise(mean_sens=mean(sens),
-            upper_sens=quantile(sens,0.975),
-            lower_sens=quantile(sens,0.025),
-            mean_model_sens.eq=mean(model_sens.eq),
-            mean_pred.pos=mean(pred.pos),
-            upper_pred.pos=quantile(pred.pos,0.975),
-            lower_pred.pos=quantile(pred.pos,0.025),
-            mean_model_pred.pos.eq=mean(model_pred.pos.eq),
-            mean_perc_improve_sens=(mean_model_sens.eq-mean_sens)/mean_sens,
-            mean_perc_reduce_n=(mean_pred.pos-mean_model_pred.pos.eq)/mean_pred.pos,
-            mean_F1=mean(F1,na.rm=TRUE),
-            mean_F2=mean(F2,na.rm=TRUE),
-            mean_model_F1=mean(model_F1),
-            mean_model_F2=mean(model_F2),
-            mean_perc_improve_F1=(mean_model_F1-mean_F1)/mean_F1,
-            mean_perc_improve_F2=(mean_model_F2-mean_F2)/mean_F2)
-kfold.improvement.summary
-
-write.csv(kfold.improvement.summary,paste0("improvement_data_",target,".csv"))
-
-plot.improvement<-function(list){
-  test.index<-list[["test"]]
-  model.test.set<-na.omit(train_complete_disc_select[test.index,])
-  model.train.set<-na.omit(train_complete_disc_select[-test.index,])
-  heuristic.test.set<-na.omit(train_data_complete[test.index,])
-  fitted<-list[["fitted"]]
-  observed<-list[["observed"]]
-  pred_probs<-predict(fitted,model.test.set,prob=TRUE)
-  probs<-data.frame(t(attributes(pred_probs)$prob))
-  pred_obs_sidebyside<-data.frame(probs$X1,observed)%>%filter(is.nan(probs.X1)==FALSE) #remove any NaN results from predicted probabilities
-  pred_class<-prediction(pred_obs_sidebyside$probs.X1,pred_obs_sidebyside$observed)
+  test_data<-train[test.index,]
+  train_data<-train[-test.index,]
+  network=bn.sig
+  fitted<-bn.fit(network, train_data, method = "bayes") #compute complete conditional probability table from the network
+  pred_class<-bn.predict(network,train_data,test_data)
   tot_pos<-pred_class@n.pos[[1]]
   tot_neg<-pred_class@n.neg[[1]]
   cutoffs<-pred_class@cutoffs[[1]]
@@ -727,71 +582,156 @@ plot.improvement<-function(list){
            F2.score=5*((precision*sensitivity)/((4*precision)+sensitivity)),
            fdr=1-precision)
 }
+imprv_kfold_curves_list<-lapply(kfold,imprv.kfold.curves)
+imprv_kfold_curves_df<-map_df(imprv_kfold_curves_list, ~as.data.frame(.x), .id="fold")
 
-kfold.plot.improvement.list<-lapply(kfold,plot.improvement)
-kfold.plot.improvement.df<-map_df(kfold.plot.improvement.list, ~as.data.frame(.x), .id="fold")
-
-pr.values.kfold.list<-lapply(kfold,plot.pr.kfold) #compile fpr and tpr results for each fold
-pr.values.kfold.df <- map_df(pr.values.kfold.list, ~as.data.frame(.x), .id="fold") #concatenate fpr and tpr results for plotting
-
-improvement.values.average<-kfold.plot.improvement.df%>% #calculate average value across all folds
-  mutate(bin_sens=cut(sensitivity,breaks=100))%>%
+#Average, smoothed Sensitivity vs Predicted Positive curve across all 10 folds
+imprv_kfold_curves_avg<-imprv_kfold_curves_df%>% #calculate average value across all folds
+  mutate(bin_sens=cut(sensitivity,breaks=seq(0,1,0.01)))%>%
   group_by(bin_sens)%>%
   summarise(mean_sens=mean(sensitivity),
             mean_pred.pos=mean(pred.pos),
             sd_pred.pos=sd(pred.pos),
             n=n(),
             upper=mean_pred.pos+1.96*(sd_pred.pos/sqrt(n())), #calculate 95% confidence interval around the mean
-            lower=mean_pred.pos-1.96*(sd_pred.pos/sqrt(n())))
+            lower=mean_pred.pos-1.96*(sd_pred.pos/sqrt(n())))%>%
+  mutate(loess_fit_mean_pred.pos=loess(mean_pred.pos~mean_sens,data=.)[["fitted"]])
+
+#Mean highest achievable F score by the model across all 10 folds
+mean_max_model_Fscores<-imprv_kfold_curves_df%>%
+  group_by(fold)%>%
+  summarise(max_F1=max(F1.score,na.rm=TRUE),
+            max_F2=max(F2.score,na.rm=TRUE))%>%
+  ungroup()%>%
+  summarise(F1=mean(max_F1),
+            F2=mean(max_F2))
+
+#Average Sensitivity and Predicted Positive for each heuristic for each fold
+imprv.heuristic<-function(list){
+  test.index<-list[["test"]]
+  test_data<-train[test.index,]
+  train_data<-train[-test.index,]
+  heuristic_test_data<-train_data_disc[test.index,]
+  network=bn.sig
+  fitted<-bn.fit(network, train_data, method = "bayes") #compute complete conditional probability table from the network
+  pred_class<-bn.predict(network,train_data,test_data)
+  perf_class<-performance(pred_class,"tpr","fpr")
+  tot_pos<-pred_class@n.pos[[1]]
+  ####
+  groundwater<-heuristic_test_data%>% #calculate prior probability of target
+    filter(type_binary=="GW")%>%
+    summarise(true.pos=sum(.data[["target"]]==1),
+              pred.pos=n(),
+              prec=true.pos/pred.pos,
+              sens=true.pos/tot_pos,
+              fdr=1-prec, #false discovery rate (FDR)
+              F1=2*((prec*sens)/(prec+sens)),
+              F2=5*((prec*sens)/((4*prec)+sens)))
+  ####
+  age<-heuristic_test_data%>% #calculate prior probability of target
+    filter(BUILT_cat=="pre1988")%>%
+    summarise(sens=sum(.data[["target"]]==1)/tot_pos,
+              true.pos=sum(.data[["target"]]==1),
+              pred.pos=n(),
+              prec=true.pos/pred.pos,
+              fdr=1-prec, #false discovery rate (FDR)
+              F1=2*((prec*sens)/(prec+sens)),
+              F2=5*((prec*sens)/((4*prec)+sens)))
+  ####
+  private<-heuristic_test_data%>% #calculate prior probability of target
+    filter(private_well==1)%>%
+    summarise(sens=sum(.data[["target"]]==1)/tot_pos,
+              true.pos=sum(.data[["target"]]==1),
+              pred.pos=n(),
+              prec=true.pos/pred.pos,
+              fdr=1-prec, #false discovery rate (FDR)
+              F1=2*((prec*sens)/(prec+sens)),
+              F2=5*((prec*sens)/((4*prec)+sens)))
+  ####
+  headstart<-heuristic_test_data%>% #calculate prior probability of target
+    filter(head_start==1)%>%
+    summarise(sens=sum(.data[["target"]]==1)/tot_pos,
+              true.pos=sum(.data[["target"]]==1),
+              pred.pos=n(),
+              prec=true.pos/pred.pos,
+              fdr=1-prec, #false discovery rate (FDR)
+              F1=2*((prec*sens)/(prec+sens)),
+              F2=5*((prec*sens)/((4*prec)+sens)))
+  heuristics.df<-as.data.frame(rbind(groundwater,age,headstart,private))
+  heuristics.labs=c("Groundwater","Pre-1988 buildings","Head Start","Private well water")
+  heuristics.df<-cbind(heuristics.labs,heuristics.df)
+} #Function to calculate performance of each alternative heuristic compared to BN model for each K-fold
+
+imprv_heuristic_list<-lapply(kfold,imprv.heuristic)
+imprv_heuristic_df<-map_df(imprv_heuristic_list, ~as.data.frame(.x), .id="fold")
+
+#Summarize improvement calculations
+#Difference from avg. Sensitivity and Predicted Positives for each heuristic compared to equivalent avg. Sensitivity and Predicted Positives from model
+kfold.improvement.summary<-imprv_heuristic_df%>%
+  group_by(heuristics.labs)%>%
+  filter(true.pos!=0)%>%
+  summarise(mean_sens=mean(sens),
+            upper_sens=quantile(sens,0.975),
+            lower_sens=quantile(sens,0.025),
+            mean_pred.pos=mean(pred.pos),
+            upper_pred.pos=quantile(pred.pos,0.975),
+            lower_pred.pos=quantile(pred.pos,0.025),
+            mean_F1=mean(F1,na.rm=TRUE),
+            mean_F2=mean(F2,na.rm=TRUE),
+            model_F1=mean_max_model_Fscores$F1,
+            model_F2=mean_max_model_Fscores$F2,
+            mean_perc_improve_F1=(model_F1-mean_F1)/mean_F1,
+            mean_perc_improve_F2=(model_F2-mean_F2)/mean_F2,
+            model_n.eq=imprv_kfold_curves_avg[which.min(abs(imprv_kfold_curves_avg$mean_sens-mean_sens)),]$loess_fit_mean_pred.pos,
+            model_sens.eq=imprv_kfold_curves_avg[which.min(abs(imprv_kfold_curves_avg$loess_fit_mean_pred.pos-mean_pred.pos)),]$mean_sens,
+            mean_perc_improve_sens=(model_sens.eq-mean_sens)/mean_sens,
+            mean_perc_reduce_n=(mean_pred.pos-model_n.eq)/mean_pred.pos)
+
+kfold.improvement.summary
+
+write.csv(kfold.improvement.summary,paste0("improvement_data_x2_",target,".csv"))
 
 #Plot improvement chart
 ggplot()+
-  geom_line(data=kfold.plot.improvement.df,
-           aes(x=sensitivity,y=pred.pos,
-               size="K-fold curves",
-               group=fold),
-           alpha=0.6,
-           color="lightgrey")+
-  geom_smooth(data=improvement.values.average,
-              aes(x=mean_sens,y=mean_pred.pos,
-                  size="K-fold mean"),
-              color="darkgrey",
-              se=FALSE)+
+  geom_line(data=imprv_kfold_curves_df,
+            aes(x=sensitivity,y=pred.pos,
+                size="K-fold curves",
+                group=fold),
+            alpha=0.6,
+            color="lightgrey")+
+  geom_line(data=imprv_kfold_curves_avg,
+            aes(x=mean_sens,y=loess_fit_mean_pred.pos,
+                size="K-fold mean"),
+            color="darkgrey")+
   geom_point(data=kfold.improvement.summary,
              aes(x=mean_sens,y=mean_pred.pos,fill=heuristics.labs),
              color="black",
              shape=21,
              alpha=0.4,
              size=4)+
-  #geom_rect(data=kfold.improvement.summary,
-  #              aes(xmin=lower_sens,xmax=upper_sens,
-  #                  ymin=lower_pred.pos,ymax=upper_pred.pos,
-  #                  color=heuristics.labs),
-  #          fill=NA,
-  #          linetype="dotted")+
   geom_segment(data=kfold.improvement.summary,
-               aes(x=mean_sens,xend=mean_model_sens.eq,
+               aes(x=mean_sens,xend=model_sens.eq,
                    y=mean_pred.pos,yend=mean_pred.pos,
                    color=heuristics.labs))+
   geom_segment(data=kfold.improvement.summary,
                aes(x=mean_sens,xend=mean_sens,
-                   y=mean_pred.pos,yend=mean_model_pred.pos.eq,
+                   y=mean_pred.pos,yend=model_n.eq,
                    color=heuristics.labs))+
   geom_point(data=kfold.improvement.summary,
-             aes(x=mean_sens,y=mean_model_pred.pos.eq,
+             aes(x=mean_sens,y=model_n.eq,
                  fill=heuristics.labs),
              color="black",
              shape=21)+
   geom_point(data=kfold.improvement.summary,
-             aes(x=mean_model_sens.eq,y=mean_pred.pos,
+             aes(x=model_sens.eq,y=mean_pred.pos,
                  fill=heuristics.labs),
              color="black",
              shape=21)+
   geom_text(data=kfold.improvement.summary,
-            aes(x=(mean_model_sens.eq+mean_sens)/1.9,y=mean_pred.pos+3.5,label=paste0(round(mean_perc_improve_sens*100),"%"),color=heuristics.labs),
+            aes(x=(model_sens.eq+mean_sens)/1.9,y=mean_pred.pos+5,label=paste0(round(mean_perc_improve_sens*100),"%"),color=heuristics.labs),
             size=2,nudge_y=0.01)+
   geom_text(data=kfold.improvement.summary,
-            aes(y=(mean_model_pred.pos.eq+mean_pred.pos)/2.05,x=mean_sens-0.013,label=paste0(round(mean_perc_reduce_n*100),"%"),color=heuristics.labs),
+            aes(y=(model_n.eq+mean_pred.pos)/2.05,x=mean_sens-0.013,label=paste0(round(mean_perc_reduce_n*100),"%"),color=heuristics.labs),
             size=2)+
   geom_text_repel(data=kfold.improvement.summary,
                   aes(x=mean_sens,y=mean_pred.pos,
@@ -812,7 +752,7 @@ ggplot()+
   scale_fill_manual(values=cbPalette2)+
   scale_size_manual(values=c(0.5,1.5),labels=c("K-fold curves","K-fold mean"))
 
-ggsave(paste0("improvement_",target,".png"),plot=last_plot(),height=6,width=7,units="in",dpi=600) #save improvement plot to working directory
+ggsave(paste0("improvement_x2_",target,".png"),plot=last_plot(),height=6,width=7,units="in",dpi=600) #save improvement plot to working directory
 
 #Generate Performance summary
 performance_summary<-data.frame(target=target,
@@ -820,10 +760,14 @@ performance_summary<-data.frame(target=target,
                                 auroc_train=auc_train,
                                 auroc_test=auc_test,
                                 auroc_kfold=mean.auc,
+                                auroc_kfold_max=max.auc,
+                                auroc_kfold_min=min.auc,
                                 aupr_train=aucpr_train,
                                 aupr_test=aucpr_test,
-                                aupr_kfold=mean.aucpr)
+                                aupr_kfold=mean.aucpr,
+                                aupr_kfold_max=max.aucpr,
+                                aupr_kfold_min=min.aucpr)
 
 performance_summary #print performance summary
 
-write.csv(performance_summary,paste0("performance_summary_",target,".csv"))
+write.csv(performance_summary,paste0("performance_summary_x2_",target,".csv"))
