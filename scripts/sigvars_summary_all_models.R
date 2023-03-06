@@ -2,7 +2,7 @@
 
 #Author: Riley E. Mulhern, PhD <rmulhern@rti.org>
 
-#Date: December 22, 2022
+#Date: February 16, 2023
 
 rm(list=ls())
 
@@ -15,20 +15,20 @@ library(stringr)
 
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
-#Get working directory 
+#Get working directory
 getwd() #This is where the outputs from this script will be saved. To set a different working directory use setwd().
-#The working directory must be set to the file path where the main BN model script outputs were saved. 
+        #The working directory must be set to the file path where the main BN model script outputs were saved.
 
 #### Load significant variables from each model --------------------------------
-maxabove1<-read.csv("sigvars_maxabove1.csv")
-maxabove5<-read.csv("sigvars_maxabove5.csv")
-maxabove10<-read.csv("sigvars_maxabove10.csv")
-maxabove15<-read.csv("sigvars_maxabove15.csv")
+maxabove1<-read.csv("sigvars.x2_maxabove1.csv")
+maxabove5<-read.csv("sigvars.x2_maxabove5.csv")
+maxabove10<-read.csv("sigvars.x2_maxabove10.csv")
+maxabove15<-read.csv("sigvars.x2_maxabove15.csv")
 
-perc90above1<-read.csv("sigvars_perc90above1.csv")
-perc90above5<-read.csv("sigvars_perc90above5.csv")
-perc90above10<-read.csv("sigvars_perc90above10.csv")
-perc90above15<-read.csv("sigvars_perc90above15.csv")
+perc90above1<-read.csv("sigvars.x2_perc90above1.csv")
+perc90above5<-read.csv("sigvars.x2_perc90above5.csv")
+perc90above10<-read.csv("sigvars.x2_perc90above10.csv")
+perc90above15<-read.csv("sigvars.x2_perc90above15.csv")
 
 maxabove1<-cbind(rep("Max>1",length(maxabove1$X)),maxabove1)
 maxabove5<-cbind(rep("Max>5",length(maxabove5$X)),maxabove5)
@@ -47,63 +47,58 @@ list_rename<-lapply(list,setNames,colnames)
 
 all<-do.call(rbind,list_rename)
 
-#Generate a frequency count for each variable 
+#Generate a frequency count for each variable
 summary_vars<-all%>%
   filter(variable!="target")%>%
   group_by(variable)%>%
   summarise(count=n())%>%
-  mutate(variable=factor(variable,levels=c("chloramines",
+  mutate(variable=factor(variable,levels=c("any_lcr_exceedance",
+                                           "chloramines",
                                            "coagulation",
                                            "connections_cat",
-                                           "cws",
                                            "fixture_year_cat",
                                            "head_start",
                                            "home_based",
-                                           "lcr_over1",
-                                           "LCR15_0.1_bin",
-                                           "MEDIAN_hh_income_1mile",
+                                           "med_hh_income_cbg",
                                            "nsamples",
                                            "PER_FREE",
                                            "PER_NON_WHITE",
                                            "perc_filtered",
+                                           "perc_hs_higher_cbg",
+                                           "perc_non_white_cbg",
                                            "ph_binary",
                                            "Phos_binary",
-                                           "private_well",
-                                           "purchased",
                                            "ruca_cat",
                                            "school",
                                            "TOTAL_ENROLL",
                                            "type_binary",
                                            "WASTE_SYSTEM",
-                                           "wells",
                                            "Y_N_FIXTURE_CHG",
                                            "year_began_operating_cat"),
-                         labels=c("Chloramination",
+                         labels=c("Past LCR exceedance",
+                                  "Chloramination",
                                   "Coagulation",
                                   "# connections of water system",
-                                  "Community water system",
                                   "Year of past faucet fixture change",
                                   "Head Start",
                                   "Home-based",
-                                  "# LCR samples above 1 ppb",
-                                  "LCR 90th percentile above 15 ppb",
-                                  "Median household income 1 mile radius",
+                                  "Block group median household income",
                                   "# samples",
                                   "% free/reduced lunch enrollment",
                                   "% non-White enrollment",
                                   "% taps filtered",
+                                  "Block group educational attainment",
+                                  "Block group % non-White",
                                   "pH adjustment",
                                   "Phosphate addition",
-                                  "Private well",
-                                  "Purchased water",
                                   "Urbanicity",
                                   "School-based",
                                   "Total enrollment",
                                   "Source water type",
                                   "On-site wastewater system",
-                                  "Number of wells in water system network",
                                   "Past faucet fixture change",
                                   "Year center began operating")))
+summary(summary_vars)
 
 #Generate a frequency count for each model
 summary_models<-all%>%
@@ -111,62 +106,57 @@ summary_models<-all%>%
   group_by(model)%>%
   summarise(count=n())
 
-#Variable frequency plot                               
+#Variable frequency plot
+palette<-rev(c("#FF1010","#FF5F5F","#FFAFAF","#FFFFFF","#C5C5E8","#8C8CD1","#5252BA","#1919A4"))
 vars_plot<-all%>%
   filter(variable!="target")%>%
-  mutate(variable=factor(variable,levels=c("chloramines",
+  mutate(model=factor(model,levels=c("Max>1","P90>1","Max>5","P90>5","Max>10","P90>10","Max>15","P90>15")))%>%
+  mutate(variable=factor(variable,levels=c("any_lcr_exceedance",
+                                           "chloramines",
                                            "coagulation",
                                            "connections_cat",
-                                           "cws",
                                            "fixture_year_cat",
                                            "head_start",
                                            "home_based",
-                                           "lcr_over1",
-                                           "LCR15_0.1_bin",
-                                           "MEDIAN_hh_income_1mile",
+                                           "med_hh_income_cbg",
                                            "nsamples",
                                            "PER_FREE",
                                            "PER_NON_WHITE",
                                            "perc_filtered",
+                                           "perc_hs_higher_cbg",
+                                           "perc_non_white_cbg",
                                            "ph_binary",
                                            "Phos_binary",
-                                           "private_well",
-                                           "purchased",
                                            "ruca_cat",
                                            "school",
                                            "TOTAL_ENROLL",
                                            "type_binary",
                                            "WASTE_SYSTEM",
-                                           "wells",
                                            "Y_N_FIXTURE_CHG",
                                            "year_began_operating_cat"),
-                         labels=c("Chloramination",
+                         labels=c("Past LCR exceedance",
+                                  "Chloramination",
                                   "Coagulation",
                                   "# connections of water system",
-                                  "Community water system",
                                   "Year of past faucet fixture change",
                                   "Head Start",
                                   "Home-based",
-                                  "# LCR samples above 1 ppb",
-                                  "LCR 90th percentile above 15 ppb",
-                                  "Median household income 1 mile radius",
+                                  "Block group median household income",
                                   "# samples",
                                   "% free/reduced lunch enrollment",
                                   "% non-White enrollment",
                                   "% taps filtered",
+                                  "Block group educational attainment",
+                                  "Block group % non-White",
                                   "pH adjustment",
                                   "Phosphate addition",
-                                  "Private well",
-                                  "Purchased water",
                                   "Urbanicity",
                                   "School-based",
                                   "Total enrollment",
                                   "Source water type",
                                   "On-site wastewater system",
-                                  "Number of wells in water system network",
                                   "Past faucet fixture change",
-                                  "Year center began operating")),
-         model=factor(model,levels=c("Max>1","P90>1","Max>5","P90>5","Max>10","P90>10","Max>15","P90>15")))%>%
+                                  "Year center began operating")))%>%
   merge(y=summary_vars,by="variable",all.x=TRUE)%>%
   ggplot(aes(x=reorder(variable,-count)))+
   geom_bar(stat="count",
@@ -207,63 +197,58 @@ models_plot
 
 inset_plot<-vars_plot+
   annotation_custom(grob=ggplotGrob(models_plot),
-                    ymin=3.5,ymax=7.8,xmin="# LCR samples above 1 ppb",xmax="% taps filtered")
+                    ymin=3.5,ymax=7.8,xmin="Block group % non-White",xmax="Block group educational attainment")
 inset_plot
 ggsave("sigvars_model summary plot.png",plot=last_plot(),height=6.5,width=8.5,units="in",dpi=600)
 
+
 #Generate summary table of all variables included in each model
-variable<-c("chloramines",
-          "coagulation",
-          "connections_cat",
-          "cws",
-          "fixture_year_cat",
-          "head_start",
-          "home_based",
-          "lcr_over1",
-          "LCR15_0.1_bin",
-          "MEDIAN_hh_income_1mile",
-          "nsamples",
-          "PER_FREE",
-          "PER_NON_WHITE",
-          "perc_filtered",
-          "ph_binary",
-          "Phos_binary",
-          "private_well",
-          "purchased",
-          "ruca_cat",
-          "school",
-          "TOTAL_ENROLL",
-          "type_binary",
-          "WASTE_SYSTEM",
-          "wells",
-          "Y_N_FIXTURE_CHG",
-          "year_began_operating_cat")
-names<-c("Chloramination",
-         "Coagulation",
-         "# connections of water system",
-         "Community water system",
-         "Year of past faucet fixture change",
-         "Head Start",
-         "Home-based",
-         "# LCR samples above 1 ppb",
-         "LCR 90th percentile above 15 ppb",
-         "Median household income 1 mile radius",
-         "# samples",
-         "% free/reduced lunch enrollment",
-         "% non-White enrollment",
-         "% taps filtered",
-         "pH adjustment",
-         "Phosphate addition",
-         "Private well",
-         "Purchased water",
-         "Urbanicity",
-         "School-based",
-         "Total enrollment",
-         "Source water type",
-         "On-site wastewater system",
-         "Number of wells in water system network",
-         "Past faucet fixture change",
-         "Year center began operating")
+variable=c("any_lcr_exceedance",
+                                         "chloramines",
+                                         "coagulation",
+                                         "connections_cat",
+                                         "fixture_year_cat",
+                                         "head_start",
+                                         "home_based",
+                                         "med_hh_income_cbg",
+                                         "nsamples",
+                                         "PER_FREE",
+                                         "PER_NON_WHITE",
+                                         "perc_filtered",
+                                         "perc_hs_higher_cbg",
+                                         "perc_non_white_cbg",
+                                         "ph_binary",
+                                         "Phos_binary",
+                                         "ruca_cat",
+                                         "school",
+                                         "TOTAL_ENROLL",
+                                         "type_binary",
+                                         "WASTE_SYSTEM",
+                                         "Y_N_FIXTURE_CHG",
+                                         "year_began_operating_cat")
+names=c("Past LCR exceedance",
+                                "Chloramination",
+                                "Coagulation",
+                                "# connections of water system",
+                                "Year of past faucet fixture change",
+                                "Head Start",
+                                "Home-based",
+                                "Block group median household income",
+                                "# samples",
+                                "% free/reduced lunch enrollment",
+                                "% non-White enrollment",
+                                "% taps filtered",
+                                "Block group educational attainment",
+                                "Block group % non-White",
+                                "pH adjustment",
+                                "Phosphate addition",
+                                "Urbanicity",
+                                "School-based",
+                                "Total enrollment",
+                                "Source water type",
+                                "On-site wastewater system",
+                                "Past faucet fixture change",
+                                "Year center began operating")
 dict<-data.frame(variable,names)
 
 summary_table<-all%>%
