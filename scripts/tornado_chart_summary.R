@@ -2,7 +2,7 @@
 
 #Author: Riley E. Mulhern, PhD <rmulhern@rti.org>
 
-#Date: December 22, 2022
+#Date: February 16, 2023
 
 rm(list=ls())
 
@@ -15,21 +15,22 @@ library(ggrepel)
 library(ggpubr)
 
 cbPalette <- c("#56B4E9", "#CC79A7","#999999", "#E69F00",  "#009E73", "#F0E442", "#0072B2", "#D55E00")
+cbPalette2 <- c("#56B4E9","#009E73","#CC79A7","#999999", "#E69F00",   "#F0E442", "#0072B2", "#D55E00")
 
-#Get working directory 
+#Get working directory
 getwd() #This is where the outputs from this script will be saved. To set a different working directory use setwd().
-#The working directory must be set to the file path where the main BN model script outputs were saved. 
+        #The working directory must be set to the file path where the main BN model script outputs were saved.
 
 #Load plot data
-maxabove1<-read.csv("cpt.plotdata_maxabove1.csv")
-maxabove5<-read.csv("cpt.plotdata_maxabove5.csv")
-maxabove10<-read.csv("cpt.plotdata_maxabove10.csv")
-maxabove15<-read.csv("cpt.plotdata_maxabove15.csv")
+maxabove1<-read.csv("cpt.plotdata_x2_maxabove1.csv")
+maxabove5<-read.csv("cpt.plotdata_x2_maxabove5.csv")
+maxabove10<-read.csv("cpt.plotdata_x2_maxabove10.csv")
+maxabove15<-read.csv("cpt.plotdata_x2_maxabove15.csv")
 
-perc90above1<-read.csv("cpt.plotdata_perc90above1.csv")
-perc90above5<-read.csv("cpt.plotdata_perc90above5.csv")
-perc90above10<-read.csv("cpt.plotdata_perc90above10.csv")
-perc90above15<-read.csv("cpt.plotdata_perc90above15.csv")
+perc90above1<-read.csv("cpt.plotdata_x2_perc90above1.csv")
+perc90above5<-read.csv("cpt.plotdata_x2_perc90above5.csv")
+perc90above10<-read.csv("cpt.plotdata_x2_perc90above10.csv")
+perc90above15<-read.csv("cpt.plotdata_x2_perc90above15.csv")
 
 maxabove1<-cbind(rep("Max>1",length(maxabove1$X)),maxabove1)
 maxabove5<-cbind(rep("Max>5",length(maxabove5$X)),maxabove5)
@@ -42,15 +43,15 @@ perc90above10<-cbind(rep("P90>10",length(perc90above10$X)),perc90above10)
 perc90above15<-cbind(rep("P90>15",length(perc90above15$X)),perc90above15)
 
 #Load label data
-maxabove1_lab<-read.csv("tornado.labeldata_maxabove1.csv")
-maxabove5_lab<-read.csv("tornado.labeldata_maxabove5.csv")
-maxabove10_lab<-read.csv("tornado.labeldata_maxabove10.csv")
-maxabove15_lab<-read.csv("tornado.labeldata_maxabove15.csv")
+maxabove1_lab<-read.csv("tornado.labeldata_x2_maxabove1.csv")
+maxabove5_lab<-read.csv("tornado.labeldata_x2_maxabove5.csv")
+maxabove10_lab<-read.csv("tornado.labeldata_x2_maxabove10.csv")
+maxabove15_lab<-read.csv("tornado.labeldata_x2_maxabove15.csv")
 
-perc90above1_lab<-read.csv("tornado.labeldata_perc90above1.csv")
-perc90above5_lab<-read.csv("tornado.labeldata_perc90above5.csv")
-perc90above10_lab<-read.csv("tornado.labeldata_perc90above10.csv")
-perc90above15_lab<-read.csv("tornado.labeldata_perc90above15.csv")
+perc90above1_lab<-read.csv("tornado.labeldata_x2_perc90above1.csv")
+perc90above5_lab<-read.csv("tornado.labeldata_x2_perc90above5.csv")
+perc90above10_lab<-read.csv("tornado.labeldata_x2_perc90above10.csv")
+perc90above15_lab<-read.csv("tornado.labeldata_x2_perc90above15.csv")
 
 #List plot data
 list<-list(maxabove1,maxabove5,maxabove10,maxabove15,
@@ -107,15 +108,73 @@ headstart<-all.plotdata%>%
   scale_fill_manual(values=cbPalette,breaks=c("Not Head Start","Head Start","Prior"))
 headstart
 
-ggsave("tornado_summary_headstart.png",plot=headstart,height=4.5,width=4.5,units="in",dpi=600)
-
 headstart.calc<-all.plotdata%>%
   filter(variable=="head_start")%>%
   merge(y=performance_summary,by="model_name",all.x=TRUE)%>%
   mutate(perc_inc_risk=(max-prior)/prior)%>%
   summarise(avg_inc_risk=mean(perc_inc_risk),
             max_inc_risk=max(perc_inc_risk))
-headstart.calc  
+headstart.calc
+
+##FREE REDUCED LUNCH
+freeredlunch.data<-all.plotdata%>%
+  filter(variable=="PER_FREE")%>%
+  mutate(min_state=all[which(all$probability==min),],
+         max_state=all[which(all$probability==max),])%>%
+  merge(y=performance_summary,by="model_name",all.x=TRUE)
+
+levels_freeredlunch<-data.frame(model_name=freeredlunch.data$model_name,
+                            max_level=c(">96%",">92%",">96%",">93%",">93%",">95%",">90%",">95%"),
+                            min_level=c("50-96%","37-92%","37-96%","28-93%","<36%","32-95%","34-90%","<49%"))
+
+freeredlunch.data<-freeredlunch.data%>%
+  merge(y=levels_freeredlunch,by="model_name",all.x=TRUE)
+
+freeredlunch<-freeredlunch.data%>%
+  ggplot(aes(y=reorder(model_name,range)))+
+  geom_linerange(aes(xmin=min,xmax=max),
+                 color="black",
+                 size=.9)+
+  scale_x_continuous(limits=c(0,1),expand=c(0,0))+
+  geom_point(aes(x=min,
+                 fill="Lowest risk",
+                 shape="Lowest risk"),
+             color="black",
+             size=3)+
+  geom_point(aes(x=max,
+                 fill="Highest risk",
+                 shape="Highest risk"),
+             color="black",
+             size=3)+
+  geom_point(aes(x=prior,
+                 fill="Prior",
+                 shape="Prior"),
+             color="black",
+             size=3,
+             alpha=0.7)+
+  labs(title="Free/reduced lunch",x="",y="Model",fill="",shape="")+
+  geom_text_repel(aes(x=max,label=max_level),
+                  size=3,nudge_y=-0.1,nudge_x=0.05)+
+  geom_text_repel(aes(x=max,label=round(max,2)),
+                  size=3,nudge_y=0.1)+
+  geom_text_repel(aes(x=min,label=round(min,2)),size=3,nudge_y=0.1)+
+  geom_text_repel(aes(x=min,label=min_level),
+                  size=3,nudge_y=-0.1)+
+  theme_bw()+
+  theme(legend.position=c(0.8,0.15),
+        legend.background = element_rect(fill="white",color="black"),
+        legend.title=element_blank(),
+        axis.title=element_text(face="bold"),
+        axis.text.x=element_text(angle=45,hjust=1))+
+  scale_shape_manual(values=c(21,21,23),breaks=c("Lowest risk","Highest risk","Prior"))+
+  scale_fill_manual(values=cbPalette,breaks=c("Lowest risk","Highest risk","Prior"))
+freeredlunch
+
+freeredlunch.calc<-freeredlunch.data%>%
+  mutate(perc_inc_risk=(max-prior)/prior)%>%
+  summarise(avg_inc_risk=mean(perc_inc_risk),
+            max_inc_risk=max(perc_inc_risk))
+freeredlunch.calc
 
 ##FIXTURE CHANGE
 fix_change.data<-all%>%
@@ -157,18 +216,20 @@ fix_change<-fix_change.data%>%
   geom_text_repel(aes(x=dk,label=round(dk,2)),size=3,nudge_y=0.1)+
   geom_text_repel(aes(x=xmin,label=round(yes,2)),size=3,nudge_y=-0.1)+
   theme_bw()+
-  theme(legend.position="top",
+  theme(legend.position="right",
         axis.title=element_text(face="bold"),
         axis.text.x=element_text(angle=45,hjust=1))+
   scale_shape_manual(values=c(21,21,21,23),breaks=c("Past fixture change - Yes","Past fixture change - No","Past fixture change - Don't know","Prior"))+
-  scale_fill_manual(values=cbPalette,breaks=c("Past fixture change - Yes","Past fixture change - No","Past fixture change - Don't know","Prior"))
+  scale_fill_manual(values=cbPalette2,breaks=c("Past fixture change - Yes","Past fixture change - No","Past fixture change - Don't know","Prior"))
 fix_change
+
+ggsave("tornado_summary_fixture_change.png",plot=fix_change,height=4,width=7,units="in",dpi=600)
 
 fixture.change.calc<-fix_change.data%>%
   mutate(perc_inc_risk=(dk-prior)/prior)%>%
   summarise(avg_inc_risk=mean(perc_inc_risk),
             max_inc_risk=max(perc_inc_risk))
-fixture.change.calc  
+fixture.change.calc
 
 ##WATER SAMPLES
 nsamples.data<-all.plotdata%>%
@@ -178,14 +239,13 @@ nsamples.data<-all.plotdata%>%
   merge(y=performance_summary,by="model_name",all.x=TRUE)
 
 levels_nsamples<-data.frame(model_name=nsamples.data$model_name,
-                            max_level=c(">=18 samples",">=28 samples",">=29 samples",">=27 samples",">=24 samples",">=30 samples",">=31 samples",">=6 samples"),
-                            min_level=c("<4 samples","<6 samples","<6 samples","<6 samples","<5","<6","<6","<6"))
+                            max_level=c(">=22 samples",">=39 samples",">=33 samples",">=37 samples",">=33 samples",">=31 samples",">=31 samples",">=4 samples"),
+                            min_level=c("<4 samples","<6 samples","<7 samples","<5 samples","<5","<4","<4","<4"))
 
 nsamples.data<-nsamples.data%>%
   merge(y=levels_nsamples,by="model_name",all.x=TRUE)
 
 nsamples<-nsamples.data%>%
-  #mutate(xmin=ifelse(yes>no,no,yes))%>%
   ggplot(aes(y=reorder(model_name,range)))+
   geom_linerange(aes(xmin=min,xmax=max),
                  color="black",
@@ -226,10 +286,11 @@ nsamples<-nsamples.data%>%
 nsamples
 
 nsamples.calc<-nsamples.data%>%
+  filter(model_name=="P90>15")%>%
   mutate(perc_inc_risk=(max-prior)/prior)%>%
   summarise(avg_inc_risk=mean(perc_inc_risk),
             max_inc_risk=max(perc_inc_risk))
-nsamples.calc 
+nsamples.calc
 
 ##HOME BASED
 home<-all.plotdata%>%
@@ -274,6 +335,7 @@ home.calc<-all.plotdata%>%
   summarise(avg_dec_risk=mean(perc_dec_risk),
             max_dec_risk=max(perc_dec_risk))
 home.calc
+
 
 ## SCHOOL
 school<-all.plotdata%>%
@@ -372,9 +434,9 @@ wtype.calc<-all.plotdata%>%
   summarise(avg_inc_risk=mean(perc_inc_risk),
             max_inc_risk=max(perc_inc_risk),
             avg_dec_risk=mean(perc_dec_risk))
-wtype.calc 
+wtype.calc
 
-##Phosphate addition
+##PHOSPHATE ADDITION
 phosphate.data<-all.plotdata%>%
   filter(variable=="Phos_binary")%>%
   mutate(min_state=all[which(all$probability==min),],
@@ -382,6 +444,7 @@ phosphate.data<-all.plotdata%>%
   merge(y=performance_summary,by="model_name",all.x=TRUE)
 
 phosphate<-phosphate.data%>%
+  #mutate(xmin=ifelse(yes>no,no,yes))%>%
   ggplot(aes(y=reorder(model_name,range)))+
   geom_linerange(aes(xmin=min,xmax=max),
                  color="black",
@@ -406,7 +469,7 @@ phosphate<-phosphate.data%>%
   labs(x="Probability of exceeding the model target",y="Model",fill="",shape="")+
   geom_text_repel(aes(x=max,label=round(max,2)),
                   size=3,nudge_y=0.1)+
-  geom_text_repel(aes(x=min,label=round(min,2)),size=3,nudge_y=0.1)+
+  geom_text_repel(aes(x=min,label=round(min,2)),size=3,nudge_y=-0.1)+
   theme_bw()+
   theme(legend.position="top",
         axis.title=element_text(face="bold"),
@@ -423,9 +486,9 @@ phosphate.calc<-all.plotdata%>%
   summarise(avg_inc_risk=mean(perc_inc_risk),
             max_inc_risk=max(perc_inc_risk),
             avg_dec_risk=mean(perc_dec_risk))
-phosphate.calc 
+phosphate.calc
 
-##PH adjustment
+##PH ADJUSTMENT
 ph.data<-all.plotdata%>%
   filter(variable=="ph_binary")%>%
   mutate(min_state=all[which(all$probability==min),],
@@ -457,7 +520,7 @@ ph<-ph.data%>%
   labs(x="Probability of exceeding the model target",y="Model",fill="",shape="")+
   geom_text_repel(aes(x=max,label=round(max,2)),
                   size=3,nudge_y=0.1)+
-  geom_text_repel(aes(x=min,label=round(min,2)),size=3,nudge_y=0.1)+
+  geom_text_repel(aes(x=min,label=round(min,2)),size=3,nudge_y=-0.1)+
   theme_bw()+
   theme(legend.position="top",
         axis.title=element_text(face="bold"),
@@ -476,9 +539,17 @@ ph.calc<-all.plotdata%>%
             avg_dec_risk=mean(perc_dec_risk))
 ph.calc
 
-##LCR
+ggarrange(phosphate, ph,
+          ncol=2,nrow=1,
+          align="hv",
+          labels=c("A","B"))
+
+ggsave("tornado_summary_ph_phosphate.png",plot=last_plot(),height=4.5,width=9,units="in",dpi=600)
+
+
+##LCR AL EXCEEDANCE
 lcr.data<-all.plotdata%>%
-  filter(variable=="LCR15_0.1_bin")%>%
+  filter(variable=="any_lcr_exceedance")%>%
   mutate(min_state=all[which(all$probability==min),],
          max_state=all[which(all$probability==max),])%>%
   merge(y=performance_summary,by="model_name",all.x=TRUE)
@@ -490,13 +561,13 @@ lcr<-lcr.data%>%
                  size=.9)+
   scale_x_continuous(limits=c(0,1),expand=c(0,0))+
   geom_point(aes(x=min,
-                 fill="No recent LCR action level violation",
-                 shape="No recent LCR action level violation"),
+                 fill="Action level violation in past 5 years",
+                 shape="Action level violation in past 5 years"),
              color="black",
              size=3)+
   geom_point(aes(x=max,
-                 fill="Recent LCR action level violation",
-                 shape="Recent LCR action level violation"),
+                 fill="LCR not applicable (private well)",
+                 shape="LCR not applicable (private well)"),
              color="black",
              size=3)+
   geom_point(aes(x=prior,
@@ -505,22 +576,24 @@ lcr<-lcr.data%>%
              color="black",
              size=3,
              alpha=0.7)+
-  labs(title="Recent Lead & Copper Rule violation",x="Posterior probability of exceeding the model target",y="Model",fill="",shape="")+
+  labs(x="Posterior probability of exceeding the model target",y="Model",fill="",shape="")+
   geom_text_repel(aes(x=max,label=round(max,2)),
                   size=3,nudge_y=0.1)+
   geom_text_repel(aes(x=min,label=round(min,2)),size=3,nudge_y=0.1)+
   theme_bw()+
-  theme(legend.position=c(0.68,0.15),
-        legend.background = element_rect(fill="white",color="black"),
+  theme(legend.position="right",
+        #legend.background = element_rect(fill="white",color="black"),
         legend.title=element_blank(),
         axis.title=element_text(face="bold"),
         axis.text.x=element_text(angle=45,hjust=1))+
-  scale_shape_manual(values=c(21,21,23),breaks=c("No recent LCR action level violation","Recent LCR action level violation","Prior"))+
-  scale_fill_manual(values=cbPalette,breaks=c("No recent LCR action level violation","Recent LCR action level violation","Prior"))
+  scale_shape_manual(values=c(21,21,23),breaks=c("Action level violation in past 5 years","LCR not applicable (private well)","Prior"))+
+  scale_fill_manual(values=cbPalette,breaks=c("Action level violation in past 5 years","LCR not applicable (private well)","Prior"))
 lcr
 
+ggsave("tornado_summary_any_lcr_exceedance.png",plot=lcr,height=4,width=7,units="in",dpi=600)
+
 lcr.calc<-all.plotdata%>%
-  filter(variable=="LCR15_0.1_bin")%>%
+  filter(variable=="any_lcr_exceedance")%>%
   merge(y=performance_summary,by="model_name",all.x=TRUE)%>%
   mutate(perc_inc_risk=(max-prior)/prior,
          perc_dec_risk=(min-prior)/prior)%>%
@@ -529,9 +602,14 @@ lcr.calc<-all.plotdata%>%
             avg_dec_risk=mean(perc_dec_risk))
 lcr.calc
 
-## PRIVATE WELL
-private<-all.plotdata%>%
-  filter(variable=="private_well")%>%
+## CONNECTIONS
+connections_index<-all.plotdata%>%
+  filter(variable=="connections_cat")%>%
+  mutate(min_state=all[which(all$probability==min),],
+         max_stat=all[which(all$probability==max),])
+
+connections<-all.plotdata%>%
+  filter(variable=="connections_cat")%>%
   merge(y=performance_summary,by="model_name",all.x=TRUE)%>%
   ggplot(aes(y=reorder(model_name,range)))+
   geom_linerange(aes(xmin=min,xmax=max),
@@ -539,13 +617,13 @@ private<-all.plotdata%>%
                  size=.9)+
   scale_x_continuous(limits=c(0,1),expand=c(0,0))+
   geom_point(aes(x=min,
-                 fill="Community water",
-                 shape="Community water"),
+                 fill="Large/Very Large water systems",
+                 shape="Large/Very Large water systems"),
              color="black",
              size=3)+
   geom_point(aes(x=max,
-                 fill="Private well",
-                 shape="Private well"),
+                 fill="Very Small/Small/Medium water systems",
+                 shape="Very Small/Small/Medium water systems"),
              color="black",
              size=3)+
   geom_point(aes(x=prior,
@@ -561,27 +639,10 @@ private<-all.plotdata%>%
   theme(legend.position="top",
         axis.title=element_text(face="bold"),
         axis.text.x=element_text(angle=45,hjust=1))+
-  scale_shape_manual(values=c(21,21,23),breaks=c("Community water","Private well","Prior"))+
-  scale_fill_manual(values=cbPalette,breaks=c("Community water","Private well","Prior"))
-private
+  scale_shape_manual(values=c(21,21,23),breaks=c("Large/Very Large water systems","Very Small/Small/Medium water systems","Prior"))+
+  scale_fill_manual(values=c("blue","red","white"),breaks=c("Large/Very Large water systems","Very Small/Small/Medium water systems","Prior"))
+connections
 
-private.calc<-all.plotdata%>%
-  filter(variable=="private_well")%>%
-  merge(y=performance_summary,by="model_name",all.x=TRUE)%>%
-  mutate(perc_inc_risk=(max-prior)/prior,
-         perc_dec_risk=(min-prior)/prior)%>%
-  summarise(avg_inc_risk=mean(perc_inc_risk),
-            max_inc_risk=max(perc_inc_risk),
-            avg_dec_risk=mean(perc_dec_risk))
-private.calc
-
-#Final plot
-ggarrange(headstart,nsamples,wtype,lcr,
-          ncol=2,nrow=2,
-          align="hv",
-          labels=c("A","B","C","D"))
-
-ggsave("tornado_summary_all.png",plot=last_plot(),height=9,width=10,units="in",dpi=600)
 
 
 

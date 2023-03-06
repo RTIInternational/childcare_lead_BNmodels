@@ -12,21 +12,9 @@ PER_NON_WHITE,Percent of enrolled children identifying as non-White
 TOTAL_ENROLL,Total number of children enrolled
 nsamples,The number of drinking and cooking water samples collected for analysis by the center (center staff were instructed to sample all drinking and cooking taps). 
 perc_filtered,The percentage of taps sampled by each center that had a point-of-use filter installed and was flagged as filtered by center staff.
-connections,Number of service connections in the water system. Centers reporting using private well water default to 1 service connection. Other centers not served by a community water system coded as missing.
-connections_cat,"The number of service connections categorized into ""Small/very small/private"" (<3300 connections); ""Medium"" (3301-10000 connections); and ""Large/very large"" (>10001 connections)"
-wells,Number of groundwater wells supplying water to the distribution system. Centers reporting using private well water default to 1 well. Other centers not served by a community water system coded as missing. 
-lcr_mean,Mean lead concentration from the most recent year of Lead and Copper Rule monitoring (mg/L). 
-lcr_med,Median lead concentration from the most recent year of Lead and Copper Rule monitoring (mg/L). 
-lcr_max,Max lead concentration from the most recent year of Lead and Copper Rule monitoring (mg/L). 
-lcr_over15,Number of samples from the most recent year of Lead and Copper Rule monitoring data exceeding 1 ppb. 
-lcr_over10,Number of samples from the most recent year of Lead and Copper Rule monitoring data exceeding 10 ppb. 
-lcr_over1,Number of samples from the most recent year of Lead and Copper Rule monitoring data exceeding 15 ppb. 
-MEDIAN_hh_income_1mile,Simulated median annual household income within a 1-mile radius around each center address. 
-PC_non_white_hh_1mile,Simulated percent non-White population within a 1-mile radius around each center address.
-MEDIAN_hh_income_0.5mile,Simulated median annual household income within a 0.5-mile radius around each center address.
-PC_non_white_hh_0.5mile,Simulated percent non-White population within a 0.5-mile radius around each center address.
-MEDIAN_hh_income_0.25mile,Simulated median annual household income within a 0.25-mile radius around each center address.
-PC_non_white_hh_0.25mile,Simulated percent non-White population within a 0.25-mile radius around each center address.
+perc_non_white_cbg,The percent of the population in the Census block group where the facility is located that identifies as a race other than White alone
+perc_hs_higher_cbg,The percent of the population in the Census block group where the facility is located that has attained a high school degree or higher
+med_hh_income_cbg,The median household income of the Census block group where the facility is located
 OWN_OR_LEASE,Whether the center building was owned or leased.
 head_start,Whether the center was a federally funded Head Start program
 school,Whether the center was located in a school building
@@ -40,11 +28,11 @@ WASTE_SYSTEM,Whether the center was served by an onsite wastewater system
 Y_N_FIXTURE_CHG,Whether the center had any known past faucet fixture changes
 fixture_year_cat,Year of past faucet fixture change
 year_began_operating_cat,Year the licensed center began operating
-LCR15_0.1_bin,"Whether the 90th percentile lead concentration from the most recent year of monitoring data exceeded 15 ppb (i.e., a Lead and Copper Rule violation. "
-purchased,Whether the water system purchased water from another community water system. Centers reporting using private well water default to “not purchased”. Other centers not served by a community water system coded as missing.
+any_lcr_exceedance,Whether the the water utility that the facility is served by had any Lead and Copper Rule action level exceedance in the five years prior to sampling (2016-2020)
 type_binary,Water system source water type. Centers reporting using private well water default to groundwater. Other centers not served by a community water system coded as missing.
 ph_binary,Whether the water system implements pH adjustment. Centers reporting using private well water default to no pH adjustment.  Other centers not served by a community water system coded as missing. 
 Phos_binary,Whether the water system implements phosphate-based corrosion control. Centers reporting using private well water default to no phosphate addition.  Other centers not served by a community water system coded as missing.
 chloramines,Whether the water system uses chloramination for disinfection. Centers reporting using private well water default to no chloramination.  Other centers not served by a community water system coded as missing.
 coagulation,Whether the water system implements coagulation in the treatment train. Centers reporting using private well water default to no coagulation.  Other centers not served by a community water system coded as missing.
+connections_cat,"The number of service connections of the water system the facility is served by, categorized according to EPA designations for small, medium, and large"
 ruca_cat,Rural-Urban Community Area (RUCA) classification
