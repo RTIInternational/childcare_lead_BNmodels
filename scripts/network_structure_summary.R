@@ -2,7 +2,7 @@
 
 #Author: Riley E. Mulhern, PhD <rmulhern@rti.org>
 
-#Date: December 22, 2022
+#Date: February 16, 2023
 
 rm(list=ls())
 
@@ -13,9 +13,12 @@ library(tidyverse)
 library(ggplot2)
 library(ggpubr)
 library(ggrepel)
+library(bnlearn)
+library(visNetwork)
 
-#Set working directory
-setwd("C:/Users/rmulhern/OneDrive - Research Triangle Institute/Env Power Rangers Shared Documents/NC WIIN/Data/")
+#Get working directory
+getwd() #This is where the outputs from this script will be saved. To set a different working directory use setwd().
+#The working directory must be set to the file path where the main BN model script outputs were saved.
 
 plot.network <- function(structure, color, ht = "600px"){
   nodes.uniq <- unique(c(structure$arcs[,1], structure$arcs[,2]))
@@ -33,26 +36,26 @@ plot.network <- function(structure, color, ht = "600px"){
 }
 
 #### Load significant variables from each model --------------------------------
-vars_maxabove1<-read.csv("sigvars_maxabove1.csv")
-vars_maxabove5<-read.csv("sigvars_maxabove5.csv")
-vars_maxabove10<-read.csv("sigvars_maxabove10.csv")
-vars_maxabove15<-read.csv("sigvars_maxabove15.csv")
+vars_maxabove1<-read.csv("sigvars.x2_maxabove1.csv")
+vars_maxabove5<-read.csv("sigvars.x2_maxabove5.csv")
+vars_maxabove10<-read.csv("sigvars.x2_maxabove10.csv")
+vars_maxabove15<-read.csv("sigvars.x2_maxabove15.csv")
 
-vars_perc90above1<-read.csv("sigvars_perc90above1.csv")
-vars_perc90above5<-read.csv("sigvars_perc90above5.csv")
-vars_perc90above10<-read.csv("sigvars_perc90above10.csv")
-vars_perc90above15<-read.csv("sigvars_perc90above15.csv")
+vars_perc90above1<-read.csv("sigvars.x2_perc90above1.csv")
+vars_perc90above5<-read.csv("sigvars.x2_perc90above5.csv")
+vars_perc90above10<-read.csv("sigvars.x2_perc90above10.csv")
+vars_perc90above15<-read.csv("sigvars.x2_perc90above15.csv")
 
 # Load arcs from each model ----------------------------------------------------
-arcs_maxabove1<-read.csv("bn_arcs_maxabove1.csv")
-arcs_maxabove5<-read.csv("bn_arcs_maxabove5.csv")
-arcs_maxabove10<-read.csv("bn_arcs_maxabove10.csv")
-arcs_maxabove15<-read.csv("bn_arcs_maxabove15.csv")
+arcs_maxabove1<-read.csv("bn_arcs_x2_maxabove1.csv")
+arcs_maxabove5<-read.csv("bn_arcs_x2_maxabove5.csv")
+arcs_maxabove10<-read.csv("bn_arcs_x2_maxabove10.csv")
+arcs_maxabove15<-read.csv("bn_arcs_x2_maxabove15.csv")
 
-arcs_perc90above1<-read.csv("bn_arcs_perc90above1.csv")
-arcs_perc90above5<-read.csv("bn_arcs_perc90above5.csv")
-arcs_perc90above10<-read.csv("bn_arcs_perc90above10.csv")
-arcs_perc90above15<-read.csv("bn_arcs_perc90above15.csv")
+arcs_perc90above1<-read.csv("bn_arcs_x2_perc90above1.csv")
+arcs_perc90above5<-read.csv("bn_arcs_x2_perc90above5.csv")
+arcs_perc90above10<-read.csv("bn_arcs_x2_perc90above10.csv")
+arcs_perc90above15<-read.csv("bn_arcs_x2_perc90above15.csv")
 
 # Create empty networks --------------------------------------------------------
 bn_maxabove1<-empty.graph(vars_maxabove1$x)
@@ -77,58 +80,52 @@ arcs(bn_perc90above10)<-arcs_perc90above10[,2:3]
 arcs(bn_perc90above15)<-arcs_perc90above15[,2:3]
 
 # Node name dictionary ---------------------------------------------------------
-levels<-c("chloramines",
-                                         "coagulation",
-                                         "connections_cat",
-                                         "cws",
-                                         "fixture_year_cat",
-                                         "head_start",
-                                         "home_based",
-                                         "lcr_over1",
-                                         "LCR15_0.1_bin",
-                                         "MEDIAN_hh_income_1mile",
-                                         "nsamples",
-                                         "PER_FREE",
-                                         "PER_NON_WHITE",
-                                         "perc_filtered",
-                                         "ph_binary",
-                                         "Phos_binary",
-                                         "private_well",
-                                         "purchased",
-                                         "ruca_cat",
-                                         "school",
-                                         "TOTAL_ENROLL",
-                                         "type_binary",
-                                         "WASTE_SYSTEM",
-                                         "wells",
-                                         "Y_N_FIXTURE_CHG",
-                                         "year_began_operating_cat")
-names<-c("Chloramination",
-                                "Coagulation",
-                                "# connections of water system",
-                                "Community water system",
-                                "Year of past faucet fixture change",
-                                "Head Start",
-                                "Home-based",
-                                "# LCR samples above 1 ppb",
-                                "LCR 90th percentile above 15 ppb",
-                                "Median household income 1 mile radius",
-                                "# samples",
-                                "% free/reduced lunch enrollment",
-                                "% non-White enrollment",
-                                "% taps filtered",
-                                "pH adjustment",
-                                "Phosphate addition",
-                                "Private well",
-                                "Purchased water",
-                                "Urbanicity",
-                                "School-based",
-                                "Total enrollment",
-                                "Source water type",
-                                "On-site wastewater system",
-                                "Number of wells in water system network",
-                                "Past faucet fixture change",
-                                "Year center began operating")
+levels=c("any_lcr_exceedance",
+           "chloramines",
+           "coagulation",
+           "connections_cat",
+           "fixture_year_cat",
+           "head_start",
+           "home_based",
+           "med_hh_income_cbg",
+           "nsamples",
+           "PER_FREE",
+           "PER_NON_WHITE",
+           "perc_filtered",
+           "perc_hs_higher_cbg",
+           "perc_non_white_cbg",
+           "ph_binary",
+           "Phos_binary",
+           "ruca_cat",
+           "school",
+           "TOTAL_ENROLL",
+           "type_binary",
+           "WASTE_SYSTEM",
+           "Y_N_FIXTURE_CHG",
+           "year_began_operating_cat")
+names=c("Past LCR exceedance",
+        "Chloramination",
+        "Coagulation",
+        "# connections of water system",
+        "Year of past faucet fixture change",
+        "Head Start",
+        "Home-based",
+        "Block group median household income",
+        "# samples",
+        "% free/reduced lunch enrollment",
+        "% non-White enrollment",
+        "% taps filtered",
+        "Block group educational attainment",
+        "Block group % non-White",
+        "pH adjustment",
+        "Phosphate addition",
+        "Urbanicity",
+        "School-based",
+        "Total enrollment",
+        "Source water type",
+        "On-site wastewater system",
+        "Past faucet fixture change",
+        "Year center began operating")
 dict<-data.frame(levels,names)
 
 # Rename nodes -------------------------------------------------------------

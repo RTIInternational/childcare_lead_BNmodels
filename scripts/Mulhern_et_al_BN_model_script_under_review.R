@@ -35,7 +35,7 @@ cbPalette2 <- c("#E69F00","#56B4E9","#009E73","#D55E00","#0072B2","#F0E442","#CC
 getwd() #This is where the outputs from this script will be saved. To set a different working directory use setwd().
 
 #Import data set
-data<-read.csv()
+data<-read.csv("https://github.com/RTIInternational/childcare_lead_BNmodels/raw/main/data/Mulhern%20et%20al_Improved%20decision%20making%20for%20water%20lead%20testing_DATA.csv")
 
 #Define numeric model variables
 num_vars<-c("PER_FREE",
@@ -46,7 +46,6 @@ num_vars<-c("PER_FREE",
                "perc_non_white_cbg",
                "perc_hs_higher_cbg",
                "med_hh_income_cbg")
-
 
 #Define categorical model variables
 cat_vars<-c("OWN_OR_LEASE",
