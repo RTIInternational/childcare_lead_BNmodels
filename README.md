@@ -43,7 +43,7 @@ Additional software packages that will need to be downloaded and installed from 
   <li><code>ROCR</code> - used to evaluate performance using ROC curve</li>
   <li><code>purrr</code> - used to compile ROC values from nested lists</li>
   <li><code>caret</code> - used to generate the confusion matrix</li>
-  <li><code>mice</code> - used to handle missing data</li>
+  <li><code>zoo</code> - used to smooth the fit of the improvement plots</li>
 </ul>
 
 ### R scripts
