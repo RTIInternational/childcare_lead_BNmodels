@@ -17,13 +17,10 @@ library(gRain) #plotting
 library(bnlearn) #learn Bayesian network structure
 library(visNetwork) #plot network structure
 library(Rgraphviz) #plot network structure
-library(arulesCBA) #discretize continuous variables
 library(ForestDisc) #random forest discretization of continuous variables
 library(ROCR) #evaluate performance using ROC curve
 library(purrr) #compile ROC values from nested lists
 library(caret) #confusion matrix
-library(mice) #missing data
-library(ggmice) #plot patterns of missing data
 library(zoo) #smooth improvement fit
 
 cbPalette <- c("#E69F00","#56B4E9","#999999","#009E73", "#D55E00", "#CC79A7","#0072B2","#F0E442") #color blind color palette
