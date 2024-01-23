@@ -1,7 +1,7 @@
 # Improved decision making for water lead testing in U.S. child care facilities using machine-learned Bayesian networks
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7477787.svg)](https://doi.org/10.5281/zenodo.7477787)
 
-Last updated: March 6, 2023
+Last updated: January 23, 2024
 
 This repository provides all the data and code needed to recreate the Bayesian Network (BN) models used to predict building-wide water lead risk in child care facilities in the publication below:
 
