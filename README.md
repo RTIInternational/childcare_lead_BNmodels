@@ -6,7 +6,7 @@ Last updated: March 6, 2023
 This repository provides all the data and code needed to recreate the Bayesian Network (BN) models used to predict building-wide water lead risk in child care facilities in the publication below:
 
 Mulhern, R. E.; Kondash, A.; Norman, E.; Johnson, J.; Levine, K.; McWilliams, A.; Napier, M.; Weber, F.; Stella, L.; Wood, E.; Lee Pow Jackson, C.; Colley, S.; Cajka, J.; MacDonald Gibson, J.; Redmon, J. H. "Improved Decision Making for Water Lead Testing in U.S. Child Care Facilities Using Machine-Learned Bayesian Networks."
-<i>Environmental Science and Technology.</i> In press. 
+<i>Environmental Science and Technology.</i> 2023, 57, 46, 17959–17970.
 
 ### Data
 The data set for this work is based on first-draw water lead sampling from over 4,000 child care centers in North Carolina, collected by the Clean Water for Carolina Kids program: https://www.cleanwaterforcarolinakids.org/. The data set is deidentified and provides eight binary target variables as well as compiled predictor variables for machine learning. The target variables are defined as follows:
@@ -63,4 +63,4 @@ In order to summarize the outputs of all eight models shown in the cited manuscr
 </ul>
 
 ### Questions
-Questions about the code in this repository should be directed to Riley E. Mulhern: rmulhern@rti.org
+Questions about the code in this repository should be directed to Riley E. Mulhern: rmulhern@brwncald.com
