@@ -63,4 +63,4 @@ In order to summarize the outputs of all eight models shown in the cited manuscr
 </ul>
 
 ### Questions
-Questions about the code in this repository should be directed to Riley E. Mulhern: rmulhern@brwncald.com
+Questions about the code in this repository should be directed to RTI International staff at joejohnson@rti.org, jredmon@rti.org, akondash@rti.org, and cleanwater@rti.org.
